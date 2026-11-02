@@ -8,3 +8,8 @@ var
 test-videos/synthetic
 web/node_modules
 .claude/worktrees
+test-videos/clips
+*.mp4
+web/dist
+.env
+.env.*

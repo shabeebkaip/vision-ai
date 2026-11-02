@@ -7,4 +7,4 @@ organisation); snapshots and clips in S3-compatible object storage with lifecycl
 
 **Why.** Relational data with strict tenant isolation fits PostgreSQL; clips are large blobs with
 retention rules that object storage enforces cheaply. Both exist with every in-Kingdom cloud
-provider and run locally in Docker (MinIO) for development.
+provider and run locally in Docker for development (SeaweedFS, Apache-2.0; MinIO no longer publishes images).

@@ -1,0 +1,23 @@
+# MediaMTX for the dev stack (REP-05): each path loops one clip as a fake RTSP camera,
+# re-encoded to what a real NVR sub-stream sends (H.264, 1280x720, 10 fps, no B-frames).
+# Clips are mounted at /clips from CLIPS_DIR; file names come from CAM1_CLIP..CAM4_CLIP.
+rtsp: yes
+rtspAddress: :8554
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+
+paths:
+  cam1:
+    runOnInit: ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i /clips/${CAM1_CLIP} -an -vf scale=1280:720,fps=10 -c:v libx264 -preset veryfast -tune zerolatency -profile:v main -bf 0 -g 20 -pix_fmt yuv420p -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+    runOnInitRestart: yes
+  cam2:
+    runOnInit: ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i /clips/${CAM2_CLIP} -an -vf scale=1280:720,fps=10 -c:v libx264 -preset veryfast -tune zerolatency -profile:v main -bf 0 -g 20 -pix_fmt yuv420p -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+    runOnInitRestart: yes
+  cam3:
+    runOnInit: ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i /clips/${CAM3_CLIP} -an -vf scale=1280:720,fps=10 -c:v libx264 -preset veryfast -tune zerolatency -profile:v main -bf 0 -g 20 -pix_fmt yuv420p -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+    runOnInitRestart: yes
+  cam4:
+    runOnInit: ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i /clips/${CAM4_CLIP} -an -vf scale=1280:720,fps=10 -c:v libx264 -preset veryfast -tune zerolatency -profile:v main -bf 0 -g 20 -pix_fmt yuv420p -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+    runOnInitRestart: yes

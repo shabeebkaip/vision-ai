@@ -1,0 +1,73 @@
+# Dev site for deploy/docker-compose.dev.yml (REP-05): four fake cameras served by MediaMTX.
+# cam1..cam4 loop the clips named by CAM1_CLIP..CAM4_CLIP in .env (synthetic scenarios by default).
+# Zones and rules match those scenarios; change them here when you point the cameras at real clips.
+id: dev-site
+name: Dev site (fake cameras)
+timezone: Asia/Riyadh
+cameras:
+  - id: cam1
+    name: Counter queue
+    source: rtsp://mediamtx:8554/cam1
+    fps: 5
+    zones:
+      - id: counter_queue
+        name: Counter queue
+        polygon: [[0.30, 0.55], [0.70, 0.55], [0.70, 0.95], [0.30, 0.95]]
+  - id: cam2
+    name: Cashier desk
+    source: rtsp://mediamtx:8554/cam2
+    fps: 5
+    zones:
+      - id: cashier
+        name: Cashier desk
+        polygon: [[0.55, 0.35], [0.85, 0.35], [0.85, 0.70], [0.55, 0.70]]
+  - id: cam3
+    name: Entrance
+    source: rtsp://mediamtx:8554/cam3
+    fps: 5
+    lines:
+      - id: door
+        name: Entrance
+        start: [0.20, 0.50]
+        end: [0.80, 0.50]
+  - id: cam4
+    name: Waiting area
+    source: rtsp://mediamtx:8554/cam4
+    fps: 5
+    zones:
+      - id: waiting
+        name: Waiting area
+        polygon: [[0.10, 0.40], [0.90, 0.40], [0.90, 0.95], [0.10, 0.95]]
+rules:
+  - id: queue
+    name: Queue too long
+    type: queue_length_over
+    camera_id: cam1
+    zone_id: counter_queue
+    threshold: 4
+    min_duration_s: 20
+    cooldown_s: 600
+  - id: desk_empty
+    name: Cashier desk unattended
+    type: zone_empty
+    camera_id: cam2
+    zone_id: cashier
+    min_duration_s: 60
+    cooldown_s: 300
+  - id: entries
+    name: Busy entrance
+    type: line_crossing
+    camera_id: cam3
+    line_id: door
+    direction: in
+    threshold: 10
+    window_s: 300
+    cooldown_s: 300
+  - id: crowded
+    name: Waiting area crowded
+    type: zone_occupancy_over
+    camera_id: cam4
+    zone_id: waiting
+    threshold: 6
+    min_duration_s: 30
+    cooldown_s: 300

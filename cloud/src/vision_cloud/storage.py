@@ -2,7 +2,7 @@
 
 Two backends behind one interface:
 
-- `S3Storage`  : any S3-compatible store (MinIO in development, AWS S3 or an in-Kingdom provider in
+- `S3Storage`  : any S3-compatible store (SeaweedFS in development, AWS S3 or an in-Kingdom provider in
                  production) through boto3 pre-signed URLs. Optional server-side encryption header.
 - `LocalStorage`: files under a directory; pre-signed URLs point at this API
                  (`/storage/local/{key}`) and are HMAC-signed with an expiry. For dev and tests only.
