@@ -77,7 +77,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.10"
+      # Only the cloud package and its dependencies: the locked onnxruntime (edge) has no
+      # Python 3.10 wheel, so `--all-packages` cannot install on 3.10.
       - name: Install
-        run: uv sync --all-packages --frozen
+        run: uv sync --frozen --package vision-cloud
       - name: Shared and cloud tests on SQLite
-        run: uv run pytest shared/tests cloud/tests
+        run: uv run --frozen --no-sync --with pytest pytest shared/tests cloud/tests
