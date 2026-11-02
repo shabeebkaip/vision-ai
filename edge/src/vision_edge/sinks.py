@@ -1,8 +1,9 @@
 """Where events go.
 
 - `ConsoleSink`  : structured log line per event (always on)
-- `OutboxSink`   : events as JSONL + snapshot/clip files on disk; the uploader (EDG-12) ships this
-                   outbox to the cloud. Until then it is also the local record of what happened.
+- `OutboxSink`   : snapshot/clip files on disk, every event version queued in the SQLite outbox
+                   (`vision_edge.outbox`) that the uploader ships to the cloud (EDG-12), plus
+                   `events.jsonl` as a human-readable local record
 - `TelegramSink` : development alerts to a Telegram group (bot token and chat id from settings)
 - `MemorySink`   : collects events in memory (tests, evaluation harness)
 """
@@ -15,6 +16,7 @@ from typing import Protocol
 import httpx
 import structlog
 
+from vision_edge.outbox import OpKind, Outbox
 from vision_shared.schemas import Event, EventState
 
 log = structlog.get_logger(__name__)
@@ -74,12 +76,14 @@ class ConsoleSink:
 
 
 class OutboxSink:
-    """Appends every event version to `events.jsonl` and stores media next to it."""
+    """Stores media under `media/`, queues every event version and media file in the outbox for
+    upload, and appends each version to `events.jsonl`."""
 
-    def __init__(self, directory: str | Path) -> None:
+    def __init__(self, directory: str | Path, outbox: Outbox | None = None) -> None:
         self.dir = Path(directory)
         (self.dir / "media").mkdir(parents=True, exist_ok=True)
         self.file = self.dir / "events.jsonl"
+        self.outbox = outbox if outbox is not None else Outbox(self.dir)
 
     def _append(self, event: Event) -> None:
         with self.file.open("a", encoding="utf-8") as fh:
@@ -91,6 +95,9 @@ class OutboxSink:
             (self.dir / key).write_bytes(snapshot)
             event.snapshot_key = key
         self._append(event)
+        self.outbox.add_event(event)
+        if event.snapshot_key:
+            self.outbox.add_media(event.id, OpKind.SNAPSHOT, event.snapshot_key)
 
     def update(self, event: Event, clip: Path | None = None) -> None:
         if clip:
@@ -99,6 +106,9 @@ class OutboxSink:
                 target.write_bytes(clip.read_bytes())
             event.clip_key = f"media/{clip.name}"
         self._append(event)
+        self.outbox.add_event(event)  # no-op when this state is already queued
+        if clip:
+            self.outbox.add_media(event.id, OpKind.CLIP, f"media/{clip.name}")
 
 
 class TelegramSink:

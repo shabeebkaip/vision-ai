@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,3 +21,14 @@ class EdgeSettings(BaseSettings):
     log_json: bool = False
     telegram_bot_token: SecretStr | None = None
     telegram_chat_id: str | None = None
+
+    # Cloud upload (EDG-12). The uploader runs when both are set; the device token comes from
+    # enrolment (EDG-13). Until then, create a device in the cloud and set it here.
+    cloud_url: str | None = None
+    """e.g. https://api.vision.code-ox.com (the device API lives under /device/v1)"""
+    device_token: SecretStr | None = None
+    upload_batch_size: int = Field(default=100, ge=1, le=500)
+    outbox_clip_quota_mb: int = Field(default=2048, ge=0)
+    """oldest clips are deleted beyond this; events are never dropped"""
+    outbox_retention_days: float = Field(default=7.0, gt=0)
+    """delivered events and media are forgotten after this"""

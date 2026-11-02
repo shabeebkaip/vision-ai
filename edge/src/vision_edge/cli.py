@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -19,15 +20,33 @@ import cv2
 from vision_edge.detection import build_detector
 from vision_edge.ingest import FileSource, open_source
 from vision_edge.logs import configure_logging
+from vision_edge.outbox import Outbox
 from vision_edge.pipeline import CameraPipeline
 from vision_edge.settings import EdgeSettings
 from vision_edge.sinks import ConsoleSink, EventSink, OutboxSink, TelegramSink
 from vision_edge.survey import format_report, survey_frames
+from vision_edge.uploader import CloudClient, RetryLater, Uploader, UploaderThread
 from vision_shared.io import load_site
 
 
-def _sinks(settings: EdgeSettings, outbox: Path, telegram: bool) -> list[EventSink]:
-    sinks: list[EventSink] = [ConsoleSink(), OutboxSink(outbox)]
+def _open_outbox(settings: EdgeSettings, directory: Path) -> Outbox:
+    return Outbox(
+        directory,
+        clip_quota_bytes=settings.outbox_clip_quota_mb * 1024 * 1024,
+        retention_s=settings.outbox_retention_days * 24 * 3600,
+    )
+
+
+def _uploader(settings: EdgeSettings, outbox: Outbox) -> Uploader | None:
+    """The cloud uploader, or None when no cloud is configured (local-only / offline mode)."""
+    if not settings.cloud_url or not settings.device_token:
+        return None
+    client = CloudClient(settings.cloud_url, settings.device_token.get_secret_value())
+    return Uploader(outbox, client, batch_size=settings.upload_batch_size)
+
+
+def _sinks(settings: EdgeSettings, outbox: Outbox, telegram: bool) -> list[EventSink]:
+    sinks: list[EventSink] = [ConsoleSink(), OutboxSink(outbox.dir, outbox)]
     if telegram:
         if not settings.telegram_bot_token or not settings.telegram_chat_id:
             sys.exit("--telegram needs VISION_TELEGRAM_BOT_TOKEN and VISION_TELEGRAM_CHAT_ID")
@@ -67,24 +86,60 @@ def cmd_run(args: argparse.Namespace, settings: EdgeSettings) -> int:
         threshold=settings.detector_threshold,
         classes=classes,
     )
-    outbox = Path(args.outbox or settings.outbox_dir)
+    outbox_dir = Path(args.outbox or settings.outbox_dir)
+    outbox = _open_outbox(settings, outbox_dir)
     pipeline = CameraPipeline(
         site=site,
         camera=camera,
         detector=detector,
         sinks=_sinks(settings, outbox, args.telegram),
-        media_dir=outbox / "media",
+        media_dir=outbox_dir / "media",
         clip_pre_s=settings.clip_pre_s,
         clip_post_s=settings.clip_post_s,
     )
     source = open_source(
         source_str, camera.id, camera.fps, max_seconds=args.max_seconds, video=args.video
     )
-    stats = pipeline.run(source)
+    uploader = _uploader(settings, outbox)
+    thread = UploaderThread(uploader) if uploader else None
+    if thread:
+        thread.start()
+    try:
+        stats = pipeline.run(source)
+    finally:
+        if thread:
+            thread.stop()
     print(
         f"done: {stats.frames} frames, {stats.seconds_of_video:.1f}s of video, {stats.events} event(s), "
-        f"{stats.fps:.1f} frames/s; outbox: {outbox}"
+        f"{stats.fps:.1f} frames/s; outbox: {outbox_dir}"
     )
+    return 0
+
+
+def cmd_upload(args: argparse.Namespace, settings: EdgeSettings) -> int:
+    """Ship an outbox to the cloud: once (`--once`, exit 1 if anything is left) or keep running."""
+    outbox = _open_outbox(settings, Path(args.outbox or settings.outbox_dir))
+    uploader = _uploader(settings, outbox)
+    if uploader is None:
+        sys.exit("upload needs VISION_CLOUD_URL and VISION_DEVICE_TOKEN")
+    if args.once:
+        try:
+            res = uploader.drain()
+        except RetryLater as exc:
+            print(f"cloud unreachable: {exc}")
+        else:
+            print(f"sent {res.events_sent} event(s) and {res.media_sent} media file(s)")
+        s = outbox.stats()
+        print(
+            f"pending: {s.pending_events} event(s), {s.pending_media} media; "
+            f"refused: {s.failed}; dropped media: {s.dropped}"
+        )
+        return 1 if s.pending_events or s.pending_media else 0
+    stop = threading.Event()
+    try:
+        uploader.run_forever(stop)
+    except KeyboardInterrupt:
+        stop.set()
     return 0
 
 
@@ -217,6 +272,10 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--outbox")
     r.add_argument("--telegram", action="store_true", help="also send alerts to Telegram")
 
+    u = sub.add_parser("upload", help="send an outbox to the cloud (EDG-12)")
+    u.add_argument("--outbox")
+    u.add_argument("--once", action="store_true", help="one pass, then report what is left")
+
     d = sub.add_parser("detect-file", help="cache detections for a video as JSONL")
     d.add_argument("video")
     d.add_argument("--out", required=True)
@@ -262,6 +321,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_validate(args)
     if args.command == "run":
         return cmd_run(args, settings)
+    if args.command == "upload":
+        return cmd_upload(args, settings)
     if args.command == "detect-file":
         return cmd_detect_file(args, settings)
     if args.command == "new-site":
