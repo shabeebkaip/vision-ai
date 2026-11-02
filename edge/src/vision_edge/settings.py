@@ -32,3 +32,9 @@ class EdgeSettings(BaseSettings):
     """oldest clips are deleted beyond this; events are never dropped"""
     outbox_retention_days: float = Field(default=7.0, gt=0)
     """delivered events and media are forgotten after this"""
+
+    # Edge agent (EDG-13): enrolment, heartbeat, site config from the cloud.
+    state_dir: Path = Path("var/state")
+    """device.json (token), site.json (config pulled by the agent), status/<camera>.json"""
+    heartbeat_interval_s: float = Field(default=60.0, ge=5)
+    hardware_tier: str | None = None

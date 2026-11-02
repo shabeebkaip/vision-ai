@@ -30,8 +30,8 @@ harness and training tools.
 shared/   vision_shared   schemas: Zone, Line, Schedule, Rule, CameraConfig, SiteConfig, Detection, Event, clip manifest
 edge/     vision_edge     the on-site pipeline and the `vision-edge` CLI
 ml/       vision_ml       evaluation harness (`vision-eval`), synthetic clips, later training/export
-cloud/                    FastAPI backend (Phase 4, not started)
-web/                      React dashboard (Phase 5, not started)
+cloud/    vision_cloud    FastAPI backend: tenants, auth, device API, event ingest (`vision-cloud`)
+web/                      React dashboard (Vite, TypeScript, Arabic/RTL)
 test-videos/              manifest.yaml + expected results; clips live in object storage, never in Git
 deploy/                   Docker / compose files
 docs/                     plans, ADRs, approved libraries, model notes
@@ -45,7 +45,7 @@ uv run pytest                          # all tests
 uv run ruff check . && uv run ruff format --check .
 uv run mypy shared/src edge/src ml/src
 uv run python scripts/licence_check.py # fails on banned or non-permissive licences
-uv run vision-edge --help              # edge CLI: run, upload, detect-file, survey, check-camera
+uv run vision-edge --help              # edge CLI: run, enrol, agent, upload, detect-file, survey, check-camera
 uv run vision-eval run --strict        # harness: score the pipeline against test-videos/manifest.yaml
 ```
 
