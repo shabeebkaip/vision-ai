@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+@import './fonts.css';
+
+/* RTL variants follow the dir attribute on <html>, which the i18n layer switches. */
+@custom-variant rtl (&:where([dir='rtl'], [dir='rtl'] *));
+
+@theme {
+  --font-sans: 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, 'Segoe UI', Tahoma, sans-serif;
+
+  /* Brand: deep teal, calm and readable on light backgrounds. */
+  --color-brand-50: #eefaf8;
+  --color-brand-100: #d5f2ee;
+  --color-brand-200: #abe4dd;
+  --color-brand-300: #74cfc5;
+  --color-brand-400: #3fb2a7;
+  --color-brand-500: #1f968c;
+  --color-brand-600: #137a72;
+  --color-brand-700: #0b5d57;
+  --color-brand-800: #0a4a46;
+  --color-brand-900: #083b38;
+
+  /* Neutral surface scale (cool grey). */
+  --color-ink-900: #0f1b24;
+  --color-ink-700: #33414d;
+  --color-ink-500: #5d6b78;
+  --color-ink-400: #8693a0;
+  --color-line: #e3e8ee;
+  --color-canvas: #f5f7f9;
+
+  /* Severity */
+  --color-sev-info: #2563eb;
+  --color-sev-warning: #b45309;
+  --color-sev-critical: #c81e1e;
+
+  --radius-card: 0.875rem;
+  --shadow-card: 0 1px 2px rgb(15 27 36 / 0.05), 0 1px 1px rgb(15 27 36 / 0.03);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  body {
+    @apply bg-canvas font-sans text-ink-900 antialiased;
+    font-feature-settings: 'kern';
+  }
+  /* Arabic script reads better a touch larger and with more line height. */
+  html[lang='ar'] body {
+    line-height: 1.65;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+  input[type='date'],
+  input[type='time'] {
+    min-height: 2.5rem;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-[var(--radius-card)] border border-line bg-white shadow-[var(--shadow-card)];
+  }
+  .field-label {
+    @apply mb-1 block text-sm font-medium text-ink-700;
+  }
+  .input {
+    @apply block w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none disabled:bg-canvas disabled:text-ink-400;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
