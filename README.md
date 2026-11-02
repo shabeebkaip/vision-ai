@@ -2,7 +2,23 @@
 
 Real-time operational alerts from the CCTV cameras customers already own. AI runs on a small edge box at the site, a manager gets a WhatsApp message with a short clip the moment something goes wrong (queue building, desk unattended, after-hours entry, helmet missing, forklift too close, exit blocked), and video never leaves the building.
 
-This repository currently holds the **plan**. Code starts with task REP-01 (folder layout) in week 1.
+## Status
+
+The plans are complete and the edge pipeline core is built: camera / video / replay sources, RF-DETR and ONNX detectors, an anonymous tracker, zones and lines, the six MVP rule types, snapshots and H.264 clips, outbox and Telegram alerts, and a scoring harness with synthetic scenarios. The cloud backend (Phase 4) and dashboard (Phase 5) are next.
+
+## Quick start
+
+```bash
+uv sync --all-packages                     # Python 3.11+; add --extra rfdetr for the real model
+uv run pytest                              # unit tests
+uv run vision-eval run --strict            # score the pipeline on the test clips
+uv run vision-eval synth --video           # render synthetic videos, then:
+uv run vision-edge run examples/synthetic-restaurant/site.yaml --camera counter \
+    --video test-videos/synthetic/syn-queue-001.mp4 --outbox var/outbox-demo
+uv run vision-edge check-camera "rtsp://USER:PASS@NVR_IP:554/Streaming/Channels/102"
+```
+
+Real camera: copy `examples/office-hikvision/site.yaml`, fill in the stream URL, draw zones as 0–1 coordinates, then `uv run --extra rfdetr vision-edge run your-site.yaml --camera reception --detector rfdetr-nano` (weights download on first run). Telegram alerts: set `VISION_TELEGRAM_BOT_TOKEN` and `VISION_TELEGRAM_CHAT_ID` and add `--telegram`.
 
 ## Documents
 
@@ -12,6 +28,9 @@ This repository currently holds the **plan**. Code starts with task REP-01 (fold
 | [Development task plan](docs/development-task-plan.md) | Every task from an empty repository to commercial launch: team and Claude Code working model, 14 phases, owners, estimates, dependencies, "done when" tests, gates, decisions and risks |
 | [All tasks as CSV](tasks/tasks.csv) | 221 tasks, one row each, ready for GitHub Projects, Jira or a spreadsheet |
 | [Tasks by phase](tasks/README.md) | One file per phase |
+| [AI models](docs/models.md) | Which models we use, their licences, weight URLs, and what is banned |
+| [Approved libraries](docs/approved-libraries.md) · [Decisions](docs/adr/README.md) | Dependency rules and architecture decision records |
+| [CLAUDE.md](CLAUDE.md) | Instructions every Claude Code session follows in this repo |
 
 ## Phases
 

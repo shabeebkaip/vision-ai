@@ -5,7 +5,7 @@ Code-Ox Vision turns the CCTV cameras a customer already owns into real-time ope
 blocked). AI runs on an **edge box at the customer site**; only events, snapshots and short clips go
 to a Saudi-hosted cloud. Managers get alerts on WhatsApp with a clip and tap "Correct" / "False alarm".
 
-The full plans live in `docs/`:
+The full plans live in `docs/` (also `docs/models.md` for model licences, `docs/adr/` for decisions):
 - `docs/product-plan.md` — market, architecture, models, hardware, budget, compliance, pricing
 - `docs/development-task-plan.md` — every task with an ID (e.g. `EDG-09`), owner, estimate, "done when"
 - `tasks/tasks.csv` — the same tasks as rows
@@ -16,7 +16,7 @@ or propose a new one.
 ## Architecture in one paragraph
 
 camera (RTSP via NVR) → `edge/ingest` frame source (5–10 fps, reconnects) → `edge/detection`
-detector (RF-DETR; ONNX/TensorRT in production) → `edge/tracking` ByteTrack (Supervision) →
+detector (RF-DETR; ONNX/TensorRT in production) → `edge/tracking` ByteTrack-style tracker (our own, ADR 007) →
 `edge/scene` zones and lines (normalised 0–1 coordinates) → `edge/rules` rules engine (six MVP rule
 types, schedules, cooldowns, hysteresis) → `edge/events` event + snapshot + clip → `edge/sinks`
 (outbox to cloud, Telegram/console in dev). The cloud (`cloud/`, FastAPI + PostgreSQL) stores events,
@@ -46,7 +46,7 @@ uv run ruff check . && uv run ruff format --check .
 uv run mypy shared/src edge/src ml/src
 uv run python scripts/licence_check.py # fails on banned or non-permissive licences
 uv run vision-edge --help              # edge CLI: run, detect-file, check-camera
-uv run vision-eval --help              # harness: score the pipeline against test-videos/manifest.yaml
+uv run vision-eval run --strict        # harness: score the pipeline against test-videos/manifest.yaml
 ```
 
 ## Rules that are never broken
@@ -67,7 +67,7 @@ uv run vision-eval --help              # harness: score the pipeline against tes
 5. **Config and secrets.** Settings come from YAML config files or environment variables
    (`VISION_` prefix, see `vision_edge.settings`). Never hard-code tokens, IPs, passwords or customer
    names. `.env` is never committed.
-6. **Edge must run on Python 3.10** (Jetson JetPack 6). Do not use 3.11+ only features
+6. **Edge code must stay Python 3.10-compatible** (Jetson JetPack 6), even though development uses 3.11+. Do not use 3.11+ only features
    (`typing.Self`, `except*`, `tomllib`, `StrEnum`). Use `from __future__ import annotations`.
 
 ## How we work
