@@ -33,7 +33,7 @@ ml/       vision_ml       evaluation harness (`vision-eval`), synthetic clips, l
 cloud/                    FastAPI backend (Phase 4, not started)
 web/                      React dashboard (Phase 5, not started)
 test-videos/              manifest.yaml + expected results; clips live in object storage, never in Git
-deploy/                   Docker / compose files
+deploy/                   Docker files; dev stack with 4 fake RTSP cameras (deploy/README.md)
 docs/                     plans, ADRs, approved libraries, model notes
 ```
 
@@ -47,6 +47,7 @@ uv run mypy shared/src edge/src ml/src
 uv run python scripts/licence_check.py # fails on banned or non-permissive licences
 uv run vision-edge --help              # edge CLI: run, detect-file, check-camera
 uv run vision-eval run --strict        # harness: score the pipeline against test-videos/manifest.yaml
+docker compose -f deploy/docker-compose.dev.yml --env-file deploy/.env up --build  # dev stack, see deploy/README.md
 ```
 
 ## Rules that are never broken

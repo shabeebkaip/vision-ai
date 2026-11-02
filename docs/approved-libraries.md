@@ -32,7 +32,8 @@ vitest, eslint, prettier, playwright (all MIT or Apache-2.0).
 
 ## Tools and services (not shipped in the product)
 
-go2rtc (MIT), MediaMTX (MIT), FFmpeg (LGPL build), Frigate (MIT, reference only), CVAT (MIT),
+go2rtc (MIT), MediaMTX (MIT), FFmpeg (LGPL build), PostgreSQL (PostgreSQL licence), Redis up to 7.2
+(BSD-3; 7.4+ is RSALv2/SSPL), SeaweedFS (Apache-2.0, dev S3 storage), Frigate (MIT, reference only), CVAT (MIT),
 Label Studio (Apache-2.0), MLflow (Apache-2.0), Grafana (AGPL: internal monitoring only, never
 bundled or modified), Tailscale.
 

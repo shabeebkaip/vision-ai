@@ -1,0 +1,123 @@
+# Whole system on one laptop (REP-05). From the repository root:
+#   cp deploy/.env.example deploy/.env
+#   uv run vision-eval synth --out test-videos/synthetic --video     # default fake-camera clips
+#   docker compose -f deploy/docker-compose.dev.yml --env-file deploy/.env up --build
+# See deploy/README.md. Cloud API (CLD-01) and web dashboard (WEB-01) join this file when they exist.
+name: codeox-vision-dev
+
+x-edge: &edge
+  build:
+    context: ..
+    dockerfile: deploy/edge/Dockerfile
+    args:
+      EDGE_EXTRAS: ${EDGE_EXTRAS:-rfdetr}
+  image: codeox/vision-edge:dev
+  restart: unless-stopped
+  init: true
+  depends_on:
+    mediamtx:
+      condition: service_started
+  environment:
+    VISION_DETECTOR: ${VISION_DETECTOR:-rfdetr-nano}
+    VISION_DETECTOR_THRESHOLD: ${VISION_DETECTOR_THRESHOLD:-0.35}
+    VISION_LOG_JSON: "true"
+  volumes:
+    - ./dev/site.yaml:/config/site.yaml:ro
+    - edge-data:/data
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vision}
+      POSTGRES_USER: ${POSTGRES_USER:-vision}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.2-alpine  # 7.2 is the last BSD-3 release; 7.4+ is RSALv2/SSPL
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:${REDIS_PORT:-6379}:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # S3-compatible object storage for snapshots, clips and the test-video library.
+  # SeaweedFS (Apache-2.0) stands in for S3 storage, whose images are no longer published on Docker Hub.
+  s3:
+    image: chrislusf/seaweedfs:4.50
+    restart: unless-stopped
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-vision}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in deploy/.env}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf '{"identities":[{"name":"dev","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}'
+        "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > /tmp/s3.json &&
+        exec weed server -dir=/data -ip=s3 -ip.bind=0.0.0.0 -s3 -s3.port=8333 -s3.config=/tmp/s3.json
+    ports: ["127.0.0.1:${S3_PORT:-8333}:8333"]
+    volumes: [s3-data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: creates the buckets the cloud and the test-video library use (VID-03), then exits.
+  s3-init:
+    image: chrislusf/seaweedfs:4.50
+    depends_on:
+      s3:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf 's3.bucket.create -name vision-media\ns3.bucket.create -name cv-test-videos\ns3.bucket.list\n'
+        | weed shell -master=s3:9333
+    restart: "no"
+
+  # Fake cameras: rtsp://localhost:8554/cam1..cam4 loop the clips in CLIPS_DIR.
+  mediamtx:
+    image: bluenviron/mediamtx:1.9.3-ffmpeg
+    restart: unless-stopped
+    environment:
+      CAM1_CLIP: ${CAM1_CLIP:-syn-queue-001.mp4}
+      CAM2_CLIP: ${CAM2_CLIP:-syn-unattended-001.mp4}
+      CAM3_CLIP: ${CAM3_CLIP:-syn-entrance-001.mp4}
+      CAM4_CLIP: ${CAM4_CLIP:-syn-crowd-001.mp4}
+    ports: ["127.0.0.1:${RTSP_PORT:-8554}:8554"]
+    volumes:
+      - ./dev/mediamtx.yml:/mediamtx.yml:ro
+      - ${CLIPS_DIR:-../test-videos/synthetic}:/clips:ro
+
+  # The edge CLI runs one camera per process for now, so one container per fake camera.
+  edge-cam1:
+    <<: *edge
+    command: ["run", "/config/site.yaml", "--camera", "cam1", "--outbox", "/data/outbox/cam1"]
+  edge-cam2:
+    <<: *edge
+    command: ["run", "/config/site.yaml", "--camera", "cam2", "--outbox", "/data/outbox/cam2"]
+  edge-cam3:
+    <<: *edge
+    command: ["run", "/config/site.yaml", "--camera", "cam3", "--outbox", "/data/outbox/cam3"]
+  edge-cam4:
+    <<: *edge
+    command: ["run", "/config/site.yaml", "--camera", "cam4", "--outbox", "/data/outbox/cam4"]
+
+volumes:
+  postgres-data:
+  redis-data:
+  s3-data:
+  edge-data:
