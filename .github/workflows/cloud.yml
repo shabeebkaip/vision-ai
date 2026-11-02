@@ -1,0 +1,85 @@
+name: Cloud
+
+# Cloud backend checks that need a real PostgreSQL 16: Alembic migrations up/down, row-level
+# security, and the whole API test suite against PostgreSQL with RLS enforced. Lint, types and the
+# SQLite run of the same tests happen in ci.yml for the whole workspace.
+
+on:
+  pull_request:
+    paths:
+      - "cloud/**"
+      - "shared/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/cloud.yml"
+  push:
+    branches: [main]
+    paths:
+      - "cloud/**"
+      - "shared/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/cloud.yml"
+
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres  # throwaway CI container, not a real credential
+          POSTGRES_DB: vision_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: uv sync --all-packages --frozen
+      - name: Types (cloud; ci.yml checks shared, edge and ml)
+        run: uv run mypy cloud/src
+      - name: Migrations up, down and up again (CLI)
+        env:
+          VISION_CLOUD_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/vision_cli
+        run: |
+          psql -h localhost -U postgres -c "CREATE DATABASE vision_cli"
+          uv run vision-cloud migrate
+          uv run alembic -c cloud/alembic.ini downgrade base
+          uv run vision-cloud migrate
+      - name: Seed the demo organisation
+        env:
+          VISION_CLOUD_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/vision_cli
+          VISION_CLOUD_SEED_PASSWORD: ci-only-demo-password
+        run: |
+          eval "$(uv run vision-cloud gen-keys | sed 's/^/export /')"
+          uv run vision-cloud seed-demo --owner-email demo@codeox.test
+      - name: Cloud tests on PostgreSQL (RLS enforced) and SQLite
+        env:
+          VISION_CLOUD_TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@localhost:5432/vision_test
+          VISION_CLOUD_REQUIRE_POSTGRES: "1"
+        run: uv run pytest cloud/tests -rs --durations=10
+
+  python310:
+    # Cloud and shared code must stay Python 3.10 compatible (same rule as the edge).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.10"
+      # Only the cloud package and its dependencies: the locked onnxruntime (edge) has no
+      # Python 3.10 wheel, so `--all-packages` cannot install on 3.10.
+      - name: Install
+        run: uv sync --frozen --package vision-cloud
+      - name: Shared and cloud tests on SQLite
+        run: uv run --frozen --no-sync --with pytest pytest shared/tests cloud/tests

@@ -1,0 +1,90 @@
+# Local development stack for the cloud backend (REP-05 partial).
+#   cp .env.example .env            # then fill the two keys: uv run vision-cloud gen-keys
+#   docker compose -f deploy/docker-compose.dev.yml --env-file .env up --build
+# API on http://localhost:8000/docs, MinIO console on http://localhost:9001.
+# Development only: the passwords below are for throwaway local containers.
+
+name: vision-dev
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: vision_owner      # owns the schema, runs migrations
+      POSTGRES_PASSWORD: ${VISION_DEV_DB_OWNER_PASSWORD:-vision-owner-dev}
+      POSTGRES_DB: vision
+      VISION_DEV_DB_APP_PASSWORD: ${VISION_DEV_DB_APP_PASSWORD:-vision-app-dev}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vision_owner -d vision"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine  # 7.2 is the last BSD-3 release; see docs/approved-libraries.md
+    ports: ["6379:6379"]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${VISION_CLOUD_STORAGE_ACCESS_KEY:-vision-dev}
+      MINIO_ROOT_PASSWORD: ${VISION_CLOUD_STORAGE_SECRET_KEY:-vision-dev-secret}
+    ports: ["9000:9000", "9001:9001"]
+    volumes:
+      - miniodata:/data
+
+  minio-setup:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}; do sleep 1; done;
+      mc mb --ignore-existing local/vision-media;
+      mc anonymous set none local/vision-media"
+    environment:
+      MINIO_ROOT_USER: ${VISION_CLOUD_STORAGE_ACCESS_KEY:-vision-dev}
+      MINIO_ROOT_PASSWORD: ${VISION_CLOUD_STORAGE_SECRET_KEY:-vision-dev-secret}
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/cloud.Dockerfile
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      VISION_CLOUD_DATABASE_URL: postgresql+psycopg://vision_owner:${VISION_DEV_DB_OWNER_PASSWORD:-vision-owner-dev}@postgres:5432/vision
+    command: ["vision-cloud", "migrate"]
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/cloud.Dockerfile
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      minio-setup: {condition: service_completed_successfully}
+      redis: {condition: service_started}
+    ports: ["8000:8000"]
+    environment:
+      VISION_CLOUD_ENVIRONMENT: dev
+      # The API connects as vision_app: no superuser, no BYPASSRLS, so row-level security applies.
+      VISION_CLOUD_DATABASE_URL: postgresql+psycopg://vision_app:${VISION_DEV_DB_APP_PASSWORD:-vision-app-dev}@postgres:5432/vision
+      VISION_CLOUD_JWT_SECRET: ${VISION_CLOUD_JWT_SECRET:?run uv run vision-cloud gen-keys}
+      VISION_CLOUD_FIELD_ENCRYPTION_KEY: ${VISION_CLOUD_FIELD_ENCRYPTION_KEY:?run uv run vision-cloud gen-keys}
+      VISION_CLOUD_STORAGE_BACKEND: s3
+      VISION_CLOUD_STORAGE_ENDPOINT_URL: http://minio:9000          # API -> MinIO inside compose
+      VISION_CLOUD_STORAGE_PUBLIC_ENDPOINT_URL: http://localhost:9000  # pre-signed URLs, from the host
+      VISION_CLOUD_STORAGE_BUCKET: vision-media
+      VISION_CLOUD_STORAGE_ACCESS_KEY: ${VISION_CLOUD_STORAGE_ACCESS_KEY:-vision-dev}
+      VISION_CLOUD_STORAGE_SECRET_KEY: ${VISION_CLOUD_STORAGE_SECRET_KEY:-vision-dev-secret}
+      VISION_CLOUD_PUBLIC_BASE_URL: http://localhost:8000
+      VISION_CLOUD_CORS_ORIGINS: '["http://localhost:5173"]'
+      VISION_CLOUD_LOG_JSON: "false"
+
+volumes:
+  pgdata:
+  miniodata:

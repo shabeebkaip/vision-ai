@@ -9,5 +9,6 @@
 | [005](005-whatsapp-first.md) | WhatsApp is the primary alert channel |
 | [006](006-per-site-pricing.md) | Per-site plans drive camera limits |
 | [007](007-own-tracker.md) | Our own ByteTrack-style tracker |
+| [008](008-own-auth-argon2-jwt.md) | Our own small auth module: argon2id, short-lived JWT, rotating refresh tokens |
 
 New decision: copy the format (status, decision, why, consequences), next number, one file.

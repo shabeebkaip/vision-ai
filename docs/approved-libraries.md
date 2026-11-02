@@ -20,6 +20,11 @@ banned packages and copyleft or non-commercial licences.
 | httpx | BSD-3 | HTTP (Telegram, cloud upload) |
 | structlog | MIT / Apache-2.0 | Structured logs |
 | fastapi, uvicorn, sqlalchemy, alembic, psycopg, redis, boto3 | MIT / BSD / Apache-2.0 / LGPL (psycopg) | Cloud backend (Phase 4) |
+| psycopg[binary] (psycopg, psycopg-binary) | LGPL-3.0 (used as an unmodified, dynamically imported library) | PostgreSQL driver for SQLAlchemy (CLD-01) |
+| argon2-cffi (+ argon2-cffi-bindings, cffi MIT-0, pycparser BSD-3) | MIT | Password hashing, argon2id (CLD-03, ADR 008) |
+| pyjwt | MIT | Short-lived HS256 access tokens (CLD-03, ADR 008) |
+| cryptography | Apache-2.0 OR BSD-3-Clause | Fernet encryption of camera stream URLs at rest (CLD-01) |
+| Transitive cloud dependencies: starlette, click, markupsafe (BSD-3); mako, h11, jmespath, urllib3, annotated-doc (MIT); botocore, s3transfer, opentelemetry-api (Apache-2.0, via boto3 / FastAPI); python-dateutil (Apache-2.0 / BSD) | as listed | Pulled in by FastAPI, Alembic and boto3; checked by `scripts/licence_check.py` |
 | anthropic | MIT | AI second opinion (CLD-12) |
 | supervision | MIT | Allowed for drawing and examples; not used for tracking (ADR 007) |
 | trackers | Apache-2.0 | Allowed only if it stops requiring non-headless OpenCV |
@@ -35,6 +40,11 @@ vitest, eslint, prettier, playwright (all MIT or Apache-2.0).
 go2rtc (MIT), MediaMTX (MIT), FFmpeg (LGPL build), Frigate (MIT, reference only), CVAT (MIT),
 Label Studio (Apache-2.0), MLflow (Apache-2.0), Grafana (AGPL: internal monitoring only, never
 bundled or modified), Tailscale.
+
+Local development stack (`deploy/docker-compose.dev.yml`, never shipped to customers):
+PostgreSQL 16 (PostgreSQL licence), Redis 7.2 (BSD-3; Redis 7.4 and later are under RSALv2/SSPL or
+AGPL, so the compose file pins 7.2), MinIO (AGPL-3.0: unmodified local S3 stand-in only; staging and
+production use the hosting provider's S3-compatible storage).
 
 ## Banned
 
