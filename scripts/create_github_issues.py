@@ -9,7 +9,12 @@ Usage:
 Needs the GitHub CLI (`gh`) logged in with access to this repository.
 Issues whose title already starts with "[TASK-ID]" are skipped, so the script can be re-run safely.
 """
-import argparse, csv, json, subprocess, sys
+
+import argparse
+import csv
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,10 +30,23 @@ DEFINITION_OF_DONE = """### Definition of done
 - [ ] Docs updated if behaviour, setup or an API changed
 - [ ] Shown in the weekly demo"""
 
-OWNER_LABELS = {"PO": "owner: PO", "LD": "owner: LD", "CV": "owner: CV", "BE": "owner: BE",
-                "FE": "owner: FE", "DO": "owner: DO", "QA": "owner: QA", "FLD": "owner: FLD"}
-COLOURS = {"phase": "1d76db", "priority: Must": "b60205", "priority: Should": "fbca04",
-           "priority: Could": "c5def5", "owner": "5319e7"}
+OWNER_LABELS = {
+    "PO": "owner: PO",
+    "LD": "owner: LD",
+    "CV": "owner: CV",
+    "BE": "owner: BE",
+    "FE": "owner: FE",
+    "DO": "owner: DO",
+    "QA": "owner: QA",
+    "FLD": "owner: FLD",
+}
+COLOURS = {
+    "phase": "1d76db",
+    "priority: Must": "b60205",
+    "priority: Should": "fbca04",
+    "priority: Could": "c5def5",
+    "owner": "5319e7",
+}
 
 
 def gh(*args, capture=True):
@@ -78,11 +96,15 @@ def main():
         print(f"\n{len(rows)} issues would be created. Re-run with --apply to create them.")
         return
 
-    existing = json.loads(gh("issue", "list", "--state", "all", "--limit", "1000", "--json", "title"))
+    existing = json.loads(
+        gh("issue", "list", "--state", "all", "--limit", "1000", "--json", "title")
+    )
     done = {i["title"].split("]")[0] + "]" for i in existing if i["title"].startswith("[")}
 
-    wanted = sorted({l for r in rows for l in labels_for(r)})
-    have = {l["name"] for l in json.loads(gh("label", "list", "--limit", "500", "--json", "name"))}
+    wanted = sorted({lb for r in rows for lb in labels_for(r)})
+    have = {
+        item["name"] for item in json.loads(gh("label", "list", "--limit", "500", "--json", "name"))
+    }
     for label in wanted:
         if label not in have:
             colour = next((c for k, c in COLOURS.items() if label.startswith(k)), "ededed")
@@ -96,8 +118,8 @@ def main():
         if len(title) > 240:
             title = title[:237] + "..."
         args = ["issue", "create", "--title", title, "--body", body_for(r)]
-        for l in labels_for(r):
-            args += ["--label", l]
+        for lb in labels_for(r):
+            args += ["--label", lb]
         url = gh(*args).strip()
         print(f"create [{r['id']}] {url}")
 
