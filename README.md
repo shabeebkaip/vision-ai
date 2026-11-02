@@ -16,6 +16,9 @@ uv run vision-eval synth --video           # render synthetic videos, then:
 uv run vision-edge run examples/synthetic-restaurant/site.yaml --camera counter \
     --video test-videos/synthetic/syn-queue-001.mp4 --outbox var/outbox-demo
 uv run vision-edge check-camera "rtsp://USER:PASS@NVR_IP:554/Streaming/Channels/102"
+uv run vision-edge survey "rtsp://..." --seconds 120          # camera suitability check for installers
+uv run vision-edge new-site restaurant --open 08:00 --close 02:00 --language ar --out site.yaml
+docker build -f deploy/edge/Dockerfile -t codeox/vision-edge:dev .
 ```
 
 Real camera: copy `examples/office-hikvision/site.yaml`, fill in the stream URL, draw zones as 0–1 coordinates, then `uv run --extra rfdetr vision-edge run your-site.yaml --camera reception --detector rfdetr-nano` (weights download on first run). Telegram alerts: set `VISION_TELEGRAM_BOT_TOKEN` and `VISION_TELEGRAM_CHAT_ID` and add `--telegram`.

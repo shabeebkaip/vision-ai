@@ -1,0 +1,25 @@
+industry: restaurant
+name_en: Restaurant / café
+name_ar: مطعم / مقهى
+zones:
+  - {role: counter_queue, name_en: Counter queue, name_ar: طابور الطلبات, hint: "Floor where customers queue to order"}
+  - {role: cashier, name_en: Cashier, name_ar: منطقة الكاشير, hint: "Where staff stand behind the till"}
+  - {role: dining, name_en: Dining area, name_ar: صالة الطعام, hint: "Seating area floor"}
+  - {role: kitchen, name_en: Kitchen, name_ar: المطبخ, hint: "Kitchen floor"}
+  - {role: back_door, name_en: Back door, name_ar: الباب الخلفي, hint: "Area just inside the service door"}
+lines:
+  - {role: entrance, name_en: Entrance, name_ar: المدخل, hint: "Across the doorway, arrow pointing inside"}
+rules:
+  - {id: queue-long, name_en: Counter queue too long, name_ar: طابور الطلبات طويل, type: queue_length_over,
+     zone_role: counter_queue, threshold: 5, min_duration_s: 120, cooldown_s: 900, schedule: open}
+  - {id: cashier-unattended, name_en: Cashier unattended, name_ar: الكاشير بدون موظف, type: zone_empty,
+     zone_role: cashier, min_duration_s: 300, schedule: open}
+  - {id: kitchen-after-hours, name_en: Someone in the kitchen after closing, name_ar: شخص في المطبخ بعد الإغلاق,
+     type: presence_after_hours, zone_role: kitchen, min_duration_s: 30, schedule: closed, severity: critical}
+  - {id: dining-after-hours, name_en: Someone in the dining area after closing, name_ar: شخص في صالة الطعام بعد الإغلاق,
+     type: presence_after_hours, zone_role: dining, min_duration_s: 30, schedule: closed, severity: critical}
+  - {id: back-door-loitering, name_en: Person waiting at the back door, name_ar: شخص ينتظر عند الباب الخلفي,
+     type: dwell_over, zone_role: back_door, min_duration_s: 180}
+  - {id: busy-hour, name_en: "Busy hour: 50+ customers came in", name_ar: "ساعة ذروة: دخل أكثر من 50 زبونًا",
+     type: line_crossing, line_role: entrance, direction: in, threshold: 50, window_s: 3600, cooldown_s: 3600,
+     schedule: open, severity: info}

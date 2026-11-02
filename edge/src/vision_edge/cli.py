@@ -22,6 +22,7 @@ from vision_edge.logs import configure_logging
 from vision_edge.pipeline import CameraPipeline
 from vision_edge.settings import EdgeSettings
 from vision_edge.sinks import ConsoleSink, EventSink, OutboxSink, TelegramSink
+from vision_edge.survey import format_report, survey_frames
 from vision_shared.io import load_site
 
 
@@ -142,6 +143,58 @@ def cmd_check_camera(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_survey(args: argparse.Namespace, settings: EdgeSettings) -> int:
+    """Camera suitability check (DET-07) on a short sample of a stream or file."""
+    kind = args.detector or ("replay" if args.source.endswith(".jsonl") else settings.detector)
+    detector = build_detector(
+        kind, model=args.model or settings.model_path, threshold=0.35, classes={"person"}
+    )
+    source = open_source(
+        args.source, "survey", args.fps, max_seconds=args.seconds, video=args.video
+    )
+    frames = []
+    dets = []
+    t0 = time.perf_counter()
+    for frame in source:
+        frames.append(frame)
+        dets.append(detector.detect([frame])[0])
+        if time.perf_counter() - t0 >= args.seconds and args.source.startswith(("rtsp", "http")):
+            break
+    elapsed = frames[-1].video_time_s if frames else 0.0
+    report = survey_frames(frames, dets, args.source, max(elapsed, 1e-6), args.fps)
+    print(format_report(report))
+    if args.json:
+        Path(args.json).write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
+    return 0 if report.verdict.value != "fail" else 1
+
+
+def cmd_new_site(args: argparse.Namespace) -> int:
+    """Starter site.yaml from an industry template (DET-08)."""
+    from datetime import time as dtime
+
+    import yaml
+
+    from vision_shared.templates import OpeningHours, load_template, site_skeleton
+
+    oh, om = (int(x) for x in args.open.split(":"))
+    ch, cm = (int(x) for x in args.close.split(":"))
+    data = site_skeleton(
+        load_template(args.industry), args.site_id, args.camera, args.source,
+        opening=OpeningHours(start=dtime(oh, om), end=dtime(ch, cm)), language=args.language,
+    )  # fmt: skip
+    text = (
+        f"# Generated from the '{args.industry}' template. Reshape the placeholder zones in the\n"
+        "# dashboard zone editor (or edit the 0-1 coordinates here), then: vision-edge validate <file>\n"
+        + yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+    )
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"wrote {args.out}")
+    else:
+        print(text)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vision-edge", description="Code-Ox Vision edge pipeline")
     sub = p.add_subparsers(dest="command", required=True)
@@ -174,6 +227,27 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--classes", help="comma-separated, e.g. person,truck")
     d.add_argument("--max-seconds", type=float)
 
+    sv = sub.add_parser("survey", help="camera suitability check for an installer (DET-07)")
+    sv.add_argument("source", help="RTSP URL or video file")
+    sv.add_argument("--seconds", type=float, default=120.0)
+    sv.add_argument("--fps", type=float, default=5.0)
+    sv.add_argument("--detector")
+    sv.add_argument("--model")
+    sv.add_argument("--json", help="also write the report as JSON")
+    sv.add_argument("--video", help="video to pair with a cached detections JSONL source")
+
+    ns = sub.add_parser("new-site", help="starter site config from an industry template")
+    ns.add_argument(
+        "industry", choices=["restaurant", "retail", "clinic", "hotel", "warehouse", "factory"]
+    )
+    ns.add_argument("--site-id", default="new-site")
+    ns.add_argument("--camera", default="cam1")
+    ns.add_argument("--source", default="rtsp://USER:PASS@NVR_IP:554/Streaming/Channels/102")
+    ns.add_argument("--open", default="09:00", help="opening time HH:MM")
+    ns.add_argument("--close", default="23:00", help="closing time HH:MM")
+    ns.add_argument("--language", choices=["en", "ar"], default="en")
+    ns.add_argument("--out")
+
     c = sub.add_parser("check-camera", help="test an RTSP URL")
     c.add_argument("url")
     c.add_argument("--seconds", type=float, default=5.0)
@@ -190,6 +264,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run(args, settings)
     if args.command == "detect-file":
         return cmd_detect_file(args, settings)
+    if args.command == "new-site":
+        return cmd_new_site(args)
+    if args.command == "survey":
+        return cmd_survey(args, settings)
     if args.command == "check-camera":
         return cmd_check_camera(args)
     return 2
