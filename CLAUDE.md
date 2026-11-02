@@ -30,7 +30,7 @@ harness and training tools.
 shared/   vision_shared   schemas: Zone, Line, Schedule, Rule, CameraConfig, SiteConfig, Detection, Event, clip manifest
 edge/     vision_edge     the on-site pipeline and the `vision-edge` CLI
 ml/       vision_ml       evaluation harness (`vision-eval`), synthetic clips, later training/export
-cloud/                    FastAPI backend (Phase 4, not started)
+cloud/    vision_cloud    FastAPI + PostgreSQL backend (CLD-01..05 done; see cloud/README.md)
 web/                      React dashboard (Phase 5, not started)
 test-videos/              manifest.yaml + expected results; clips live in object storage, never in Git
 deploy/                   Docker / compose files
@@ -43,10 +43,11 @@ docs/                     plans, ADRs, approved libraries, model notes
 uv sync --all-packages                 # install everything (add --extra rfdetr in edge for the real model)
 uv run pytest                          # all tests
 uv run ruff check . && uv run ruff format --check .
-uv run mypy shared/src edge/src ml/src
+uv run mypy shared/src edge/src ml/src cloud/src
 uv run python scripts/licence_check.py # fails on banned or non-permissive licences
 uv run vision-edge --help              # edge CLI: run, detect-file, check-camera
 uv run vision-eval --help              # harness: score the pipeline against test-videos/manifest.yaml
+uv run vision-cloud --help             # cloud: serve, migrate, seed, create-admin, enrolment-token
 ```
 
 ## Rules that are never broken
@@ -65,7 +66,7 @@ uv run vision-eval --help              # harness: score the pipeline against tes
 4. **Time.** Store and compute in UTC (timezone-aware `datetime`); schedules are evaluated in the
    site's timezone (default `Asia/Riyadh`). Never use naive datetimes.
 5. **Config and secrets.** Settings come from YAML config files or environment variables
-   (`VISION_` prefix, see `vision_edge.settings`). Never hard-code tokens, IPs, passwords or customer
+   (`VISION_` prefix, see `vision_edge.settings` and `vision_cloud.settings`). Never hard-code tokens, IPs, passwords or customer
    names. `.env` is never committed.
 6. **Edge must run on Python 3.10** (Jetson JetPack 6). Do not use 3.11+ only features
    (`typing.Self`, `except*`, `tomllib`, `StrEnum`). Use `from __future__ import annotations`.
