@@ -23,6 +23,8 @@ docker build -f deploy/edge/Dockerfile -t codeox/vision-edge:dev .
 
 Real camera: copy `examples/office-hikvision/site.yaml`, fill in the stream URL, draw zones as 0–1 coordinates, then `uv run --extra rfdetr vision-edge run your-site.yaml --camera reception --detector rfdetr-nano` (weights download on first run). Telegram alerts: set `VISION_TELEGRAM_BOT_TOKEN` and `VISION_TELEGRAM_CHAT_ID` and add `--telegram`.
 
+Whole system on a laptop (database, S3 storage, cloud API, dashboard, four fake RTSP cameras, edge pipeline): see [deploy/README.md](deploy/README.md).
+
 ## Documents
 
 | Document | What it covers |

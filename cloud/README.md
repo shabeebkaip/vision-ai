@@ -6,7 +6,8 @@ CLD-01 to CLD-07, CLD-17 and CLD-19 basics (see `docs/development-task-plan.md`,
 
 ## Run it
 
-With Docker (PostgreSQL, Redis, MinIO and the API):
+With Docker (PostgreSQL, Redis, S3 storage and the API; the same stack also runs the dashboard, fake
+cameras and edge, see `deploy/README.md`):
 
 ```bash
 cp .env.example .env

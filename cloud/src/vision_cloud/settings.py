@@ -38,12 +38,12 @@ class CloudSettings(BaseSettings):
     storage_backend: Literal["s3", "local"] = "s3"
     storage_bucket: str = "vision-media"
     storage_endpoint_url: str | None = Field(
-        default=None, description="MinIO or other S3-compatible endpoint; empty for AWS S3"
+        default=None, description="S3-compatible endpoint (SeaweedFS in dev); empty for AWS S3"
     )
     storage_public_endpoint_url: str | None = Field(
         default=None,
         description="endpoint used in pre-signed URLs when edge boxes and browsers reach the store "
-        "under another address than the API does (e.g. MinIO inside docker compose)",
+        "under another address than the API does (e.g. storage inside docker compose)",
     )
     storage_region: str = "us-east-1"
     storage_access_key: SecretStr | None = None

@@ -65,8 +65,9 @@ bundled or modified), Tailscale.
 
 Local development stack (`deploy/docker-compose.dev.yml`, never shipped to customers):
 PostgreSQL 16 (PostgreSQL licence), Redis 7.2 (BSD-3; Redis 7.4 and later are under RSALv2/SSPL or
-AGPL, so the compose file pins 7.2), MinIO (AGPL-3.0: unmodified local S3 stand-in only; staging and
-production use the hosting provider's S3-compatible storage).
+AGPL, so the compose file pins 7.2), SeaweedFS (Apache-2.0: local S3 stand-in; staging and
+production use the hosting provider's S3-compatible storage), MediaMTX (MIT: fake RTSP cameras),
+Node 22 (MIT: dashboard dev server). MinIO was the first choice but no longer publishes images.
 
 ## Banned
 

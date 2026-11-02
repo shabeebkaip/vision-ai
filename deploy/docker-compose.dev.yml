@@ -1,10 +1,29 @@
-# Local development stack for the cloud backend (REP-05 partial).
-#   cp .env.example .env            # then fill the two keys: uv run vision-cloud gen-keys
+# The whole system on one laptop (REP-05): database, cache, S3 storage, cloud API, web dashboard,
+# four fake RTSP cameras and the edge pipeline on each. From the repository root:
+#   cp .env.example .env            # then fill the two cloud keys: uv run vision-cloud gen-keys
+#   uv run vision-eval synth --out test-videos/synthetic --video     # clips for the fake cameras
 #   docker compose -f deploy/docker-compose.dev.yml --env-file .env up --build
-# API on http://localhost:8000/docs, MinIO console on http://localhost:9001.
+# API on http://localhost:8000/docs, dashboard on http://localhost:5173. See deploy/README.md.
 # Development only: the passwords below are for throwaway local containers.
 
 name: vision-dev
+
+x-edge: &edge
+  build:
+    context: ..
+    dockerfile: deploy/edge/Dockerfile
+    args:
+      EDGE_EXTRAS: ${EDGE_EXTRAS:-rfdetr}
+  image: codeox/vision-edge:dev
+  restart: unless-stopped
+  depends_on:
+    mediamtx: {condition: service_started}
+  environment:
+    VISION_DETECTOR: ${VISION_DETECTOR:-rfdetr-nano}
+    VISION_DETECTOR_THRESHOLD: ${VISION_DETECTOR_THRESHOLD:-0.35}
+  volumes:
+    - ./dev/site.yaml:/config/site.yaml:ro
+    - edgedata:/var/lib/vision
 
 services:
   postgres:
@@ -14,7 +33,7 @@ services:
       POSTGRES_PASSWORD: ${VISION_DEV_DB_OWNER_PASSWORD:-vision-owner-dev}
       POSTGRES_DB: vision
       VISION_DEV_DB_APP_PASSWORD: ${VISION_DEV_DB_APP_PASSWORD:-vision-app-dev}
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
@@ -26,34 +45,51 @@ services:
 
   redis:
     image: redis:7.2-alpine  # 7.2 is the last BSD-3 release; see docs/approved-libraries.md
-    ports: ["6379:6379"]
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
-  minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
-    command: server /data --console-address ":9001"
+  # S3-compatible object storage. SeaweedFS (Apache-2.0) stands in for MinIO, whose images are no
+  # longer published; it speaks the same S3 API and listens on host port 9000 like MinIO did.
+  s3:
+    image: chrislusf/seaweedfs:4.50
     environment:
-      MINIO_ROOT_USER: ${VISION_CLOUD_STORAGE_ACCESS_KEY:-vision-dev}
-      MINIO_ROOT_PASSWORD: ${VISION_CLOUD_STORAGE_SECRET_KEY:-vision-dev-secret}
-    ports: ["9000:9000", "9001:9001"]
+      S3_ACCESS_KEY: ${VISION_CLOUD_STORAGE_ACCESS_KEY:-vision-dev}
+      S3_SECRET_KEY: ${VISION_CLOUD_STORAGE_SECRET_KEY:-vision-dev-secret}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf '{"identities":[{"name":"dev","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}'
+        "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > /tmp/s3.json &&
+        exec weed server -dir=/data -ip=s3 -ip.bind=0.0.0.0 -s3 -s3.port=8333 -s3.config=/tmp/s3.json
+    ports: ["127.0.0.1:9000:8333"]
     volumes:
-      - miniodata:/data
+      - s3data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
-  minio-setup:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
-    depends_on: [minio]
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}; do sleep 1; done;
-      mc mb --ignore-existing local/vision-media;
-      mc anonymous set none local/vision-media"
-    environment:
-      MINIO_ROOT_USER: ${VISION_CLOUD_STORAGE_ACCESS_KEY:-vision-dev}
-      MINIO_ROOT_PASSWORD: ${VISION_CLOUD_STORAGE_SECRET_KEY:-vision-dev-secret}
+  # One-shot: creates the media bucket and the test-video library bucket (VID-03), then exits.
+  s3-setup:
+    image: chrislusf/seaweedfs:4.50
+    depends_on:
+      s3: {condition: service_healthy}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf 's3.bucket.create -name vision-media\ns3.bucket.create -name cv-test-videos\ns3.bucket.list\n'
+        | weed shell -master=s3:9333
 
   migrate:
     build:
       context: ..
       dockerfile: deploy/cloud.Dockerfile
+    image: codeox/vision-cloud:dev
     depends_on:
       postgres: {condition: service_healthy}
     environment:
@@ -61,14 +97,12 @@ services:
     command: ["vision-cloud", "migrate"]
 
   api:
-    build:
-      context: ..
-      dockerfile: deploy/cloud.Dockerfile
+    image: codeox/vision-cloud:dev
     depends_on:
       migrate: {condition: service_completed_successfully}
-      minio-setup: {condition: service_completed_successfully}
-      redis: {condition: service_started}
-    ports: ["8000:8000"]
+      s3-setup: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    ports: ["127.0.0.1:8000:8000"]
     environment:
       VISION_CLOUD_ENVIRONMENT: dev
       # The API connects as vision_app: no superuser, no BYPASSRLS, so row-level security applies.
@@ -76,8 +110,8 @@ services:
       VISION_CLOUD_JWT_SECRET: ${VISION_CLOUD_JWT_SECRET:?run uv run vision-cloud gen-keys}
       VISION_CLOUD_FIELD_ENCRYPTION_KEY: ${VISION_CLOUD_FIELD_ENCRYPTION_KEY:?run uv run vision-cloud gen-keys}
       VISION_CLOUD_STORAGE_BACKEND: s3
-      VISION_CLOUD_STORAGE_ENDPOINT_URL: http://minio:9000          # API -> MinIO inside compose
-      VISION_CLOUD_STORAGE_PUBLIC_ENDPOINT_URL: http://localhost:9000  # pre-signed URLs, from the host
+      VISION_CLOUD_STORAGE_ENDPOINT_URL: http://s3:8333                 # API -> storage inside compose
+      VISION_CLOUD_STORAGE_PUBLIC_ENDPOINT_URL: http://localhost:9000   # pre-signed URLs, from the host
       VISION_CLOUD_STORAGE_BUCKET: vision-media
       VISION_CLOUD_STORAGE_ACCESS_KEY: ${VISION_CLOUD_STORAGE_ACCESS_KEY:-vision-dev}
       VISION_CLOUD_STORAGE_SECRET_KEY: ${VISION_CLOUD_STORAGE_SECRET_KEY:-vision-dev-secret}
@@ -85,6 +119,49 @@ services:
       VISION_CLOUD_CORS_ORIGINS: '["http://localhost:5173"]'
       VISION_CLOUD_LOG_JSON: "false"
 
+  # Dashboard dev server. VITE_API_BASE_URL empty = built-in demo data (the default until the
+  # dashboard and API contracts are aligned); set it to http://localhost:8000/api/v1 to use the API.
+  web:
+    image: node:22.23.4-alpine
+    working_dir: /web
+    command: ["sh", "-c", "npm ci --no-audit --no-fund && npm run dev -- --host 0.0.0.0"]
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    ports: ["127.0.0.1:5173:5173"]
+    volumes:
+      - ../web:/web
+      - webmodules:/web/node_modules
+
+  # Fake cameras: rtsp://localhost:8554/cam1..cam4 loop the clips in CLIPS_DIR, re-encoded like an
+  # NVR sub-stream. Default clips are the synthetic scenarios.
+  mediamtx:
+    image: bluenviron/mediamtx:1.9.3-ffmpeg
+    environment:
+      CAM1_CLIP: ${CAM1_CLIP:-syn-queue-001.mp4}
+      CAM2_CLIP: ${CAM2_CLIP:-syn-unattended-001.mp4}
+      CAM3_CLIP: ${CAM3_CLIP:-syn-entrance-001.mp4}
+      CAM4_CLIP: ${CAM4_CLIP:-syn-crowd-001.mp4}
+    ports: ["127.0.0.1:8554:8554"]
+    volumes:
+      - ./dev/mediamtx.yml:/mediamtx.yml:ro
+      - ${CLIPS_DIR:-../test-videos/synthetic}:/clips:ro
+
+  # The edge CLI runs one camera per process for now, so one container per fake camera.
+  edge-cam1:
+    <<: *edge
+    command: ["run", "/config/site.yaml", "--camera", "cam1", "--outbox", "/var/lib/vision/outbox/cam1"]
+  edge-cam2:
+    <<: *edge
+    command: ["run", "/config/site.yaml", "--camera", "cam2", "--outbox", "/var/lib/vision/outbox/cam2"]
+  edge-cam3:
+    <<: *edge
+    command: ["run", "/config/site.yaml", "--camera", "cam3", "--outbox", "/var/lib/vision/outbox/cam3"]
+  edge-cam4:
+    <<: *edge
+    command: ["run", "/config/site.yaml", "--camera", "cam4", "--outbox", "/var/lib/vision/outbox/cam4"]
+
 volumes:
   pgdata:
-  miniodata:
+  s3data:
+  edgedata:
+  webmodules:
