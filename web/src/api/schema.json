@@ -1,0 +1,605 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "CameraConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "fps": {
+          "default": 5.0,
+          "exclusiveMinimum": 0,
+          "maximum": 30,
+          "type": "number"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/definitions/Line"
+          },
+          "type": "array"
+        },
+        "name": {
+          "default": "",
+          "type": "string"
+        },
+        "source": {
+          "description": "rtsp:// URL, file path, or replay JSONL",
+          "minLength": 1,
+          "type": "string"
+        },
+        "zones": {
+          "items": {
+            "$ref": "#/definitions/Zone"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "source",
+        "fps",
+        "zones",
+        "lines",
+        "enabled"
+      ],
+      "title": "CameraConfig",
+      "type": "object"
+    },
+    "Detection": {
+      "additionalProperties": false,
+      "description": "One detected object in pixel coordinates (x1, y1, x2, y2) of the analysed frame.",
+      "properties": {
+        "box": {
+          "additionalItems": false,
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "class_name": {
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "track_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "class_name",
+        "confidence",
+        "box",
+        "track_id"
+      ],
+      "title": "Detection",
+      "type": "object"
+    },
+    "Direction": {
+      "enum": [
+        "in",
+        "out",
+        "any"
+      ],
+      "title": "Direction",
+      "type": "string"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "cleared_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clip_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "condition_started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "message": {
+          "default": "",
+          "type": "string"
+        },
+        "needs_verification": {
+          "default": false,
+          "type": "boolean"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "rule_type": {
+          "$ref": "#/definitions/RuleType"
+        },
+        "schema_version": {
+          "default": "1.0",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/definitions/Severity"
+        },
+        "site_id": {
+          "type": "string"
+        },
+        "snapshot_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state": {
+          "$ref": "#/definitions/EventState",
+          "default": "triggered"
+        },
+        "triggered_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "value": {
+          "description": "count, seconds of dwell, or number of crossings",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "site_id",
+        "camera_id",
+        "rule_id",
+        "rule_type",
+        "severity",
+        "state",
+        "condition_started_at",
+        "triggered_at",
+        "cleared_at",
+        "value",
+        "message",
+        "attributes",
+        "snapshot_key",
+        "clip_key",
+        "needs_verification",
+        "created_at"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "EventState": {
+      "enum": [
+        "triggered",
+        "cleared"
+      ],
+      "title": "EventState",
+      "type": "string"
+    },
+    "Line": {
+      "additionalProperties": false,
+      "description": "A counting line. \"in\" means crossing from the left side to the right side when walking\nfrom `start` to `end` (the dashboard draws an arrow to show it).",
+      "properties": {
+        "end": {
+          "additionalItems": false,
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "type": "string"
+        },
+        "start": {
+          "additionalItems": false,
+          "items": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "start",
+        "end"
+      ],
+      "title": "Line",
+      "type": "object"
+    },
+    "Rule": {
+      "additionalProperties": false,
+      "description": "One alert rule on one camera.\n\nMeaning of `threshold` and `min_duration_s` per type:\n  zone_occupancy_over / queue_length_over: more than `threshold` objects in the zone for\n      at least `min_duration_s`.\n  zone_empty: no object in the zone for at least `min_duration_s` (threshold unused).\n  dwell_over: any single object stays in the zone longer than `min_duration_s`.\n  line_crossing: at least `threshold` crossings in `direction` within `window_s`.\n  presence_after_hours: at least `threshold` objects in the zone for `min_duration_s` while\n      the schedule (the after-hours window) is active.",
+      "properties": {
+        "camera_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "classes": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "clear_after_s": {
+          "default": 10.0,
+          "minimum": 0,
+          "type": "number"
+        },
+        "cooldown_s": {
+          "default": 300.0,
+          "minimum": 0,
+          "type": "number"
+        },
+        "direction": {
+          "$ref": "#/definitions/Direction",
+          "default": "any"
+        },
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "line_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "min_confidence": {
+          "default": 0.4,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "min_duration_s": {
+          "default": 0.0,
+          "minimum": 0,
+          "type": "number"
+        },
+        "name": {
+          "default": "",
+          "type": "string"
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Schedule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "severity": {
+          "$ref": "#/definitions/Severity",
+          "default": "warning"
+        },
+        "threshold": {
+          "default": 1,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/definitions/RuleType"
+        },
+        "verify": {
+          "default": false,
+          "type": "boolean"
+        },
+        "window_s": {
+          "default": 60.0,
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "zone_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "type",
+        "camera_id",
+        "zone_id",
+        "line_id",
+        "classes",
+        "threshold",
+        "min_duration_s",
+        "window_s",
+        "direction",
+        "clear_after_s",
+        "cooldown_s",
+        "min_confidence",
+        "schedule",
+        "severity",
+        "verify",
+        "enabled"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "RuleType": {
+      "enum": [
+        "zone_occupancy_over",
+        "zone_empty",
+        "queue_length_over",
+        "dwell_over",
+        "line_crossing",
+        "presence_after_hours"
+      ],
+      "title": "RuleType",
+      "type": "string"
+    },
+    "Schedule": {
+      "additionalProperties": false,
+      "description": "Active window in the site's local time. `start > end` means the window crosses midnight\n(e.g. 23:00 to 06:00). `days` are ISO weekdays of the window's start: 1=Monday .. 7=Sunday.",
+      "properties": {
+        "days": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "end": {
+          "default": "23:59:59",
+          "format": "time",
+          "type": "string"
+        },
+        "start": {
+          "default": "00:00:00",
+          "format": "time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "days",
+        "start",
+        "end"
+      ],
+      "title": "Schedule",
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "SiteConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "cameras": {
+          "items": {
+            "$ref": "#/definitions/CameraConfig"
+          },
+          "type": "array"
+        },
+        "events_only": {
+          "default": false,
+          "description": "sensitive sites: upload events without snapshots or clips",
+          "type": "boolean"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "type": "string"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/definitions/Rule"
+          },
+          "type": "array"
+        },
+        "timezone": {
+          "default": "Asia/Riyadh",
+          "type": "string"
+        },
+        "version": {
+          "default": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "timezone",
+        "version",
+        "events_only",
+        "cameras",
+        "rules"
+      ],
+      "title": "SiteConfig",
+      "type": "object"
+    },
+    "Zone": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "type": "string"
+        },
+        "polygon": {
+          "items": {
+            "additionalItems": false,
+            "items": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "polygon"
+      ],
+      "title": "Zone",
+      "type": "object"
+    }
+  },
+  "description": "Generated from vision_shared.schemas (schema_version 1.0) by scripts/export_json_schema.py. Do not edit by hand.",
+  "properties": {
+    "CameraConfig": {
+      "$ref": "#/definitions/CameraConfig"
+    },
+    "Detection": {
+      "$ref": "#/definitions/Detection"
+    },
+    "Direction": {
+      "$ref": "#/definitions/Direction"
+    },
+    "Event": {
+      "$ref": "#/definitions/Event"
+    },
+    "EventState": {
+      "$ref": "#/definitions/EventState"
+    },
+    "Line": {
+      "$ref": "#/definitions/Line"
+    },
+    "Rule": {
+      "$ref": "#/definitions/Rule"
+    },
+    "RuleType": {
+      "$ref": "#/definitions/RuleType"
+    },
+    "Schedule": {
+      "$ref": "#/definitions/Schedule"
+    },
+    "Severity": {
+      "$ref": "#/definitions/Severity"
+    },
+    "SiteConfig": {
+      "$ref": "#/definitions/SiteConfig"
+    },
+    "Zone": {
+      "$ref": "#/definitions/Zone"
+    }
+  },
+  "title": "VisionShared",
+  "type": "object"
+}

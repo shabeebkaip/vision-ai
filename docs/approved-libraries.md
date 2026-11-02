@@ -32,8 +32,30 @@ banned packages and copyleft or non-commercial licences.
 
 ## Web (Phase 5)
 
-react, vite, typescript, tailwindcss, @tanstack/react-query, react-router, react-konva, react-i18next,
-vitest, eslint, prettier, playwright (all MIT or Apache-2.0).
+`web/scripts/check-licences.mjs` (`npm run licences`, run in the Web workflow) fails on copyleft or
+non-commercial npm licences.
+
+| Library | Licence | Why |
+| --- | --- | --- |
+| react, react-dom | MIT | UI |
+| vite, @vitejs/plugin-react | MIT | Dev server and build |
+| typescript | Apache-2.0 | Types |
+| tailwindcss, @tailwindcss/vite | MIT | Styling (logical properties for right-to-left). Pulls in lightningcss (MPL-2.0) as a build-time tool only; nothing of it ships |
+| @tanstack/react-query | MIT | Server state, polling, caching |
+| react-router | MIT | Routing |
+| konva, react-konva | MIT | Zone and line editor canvas |
+| i18next, react-i18next | MIT | Arabic and English |
+| recharts | MIT | Footfall chart |
+| lucide-react | ISC | Icons |
+| json-schema-to-typescript | MIT | Generates `web/src/api/types.ts` from the shared pydantic schemas |
+| vitest, jsdom, @testing-library/react, @testing-library/dom, @testing-library/jest-dom | MIT | Tests |
+| eslint, @eslint/js, typescript-eslint, eslint-plugin-react-hooks, globals | MIT | Lint |
+| prettier | MIT | Formatting |
+| playwright | Apache-2.0 | Screenshots and browser checks (dev tool, not a dependency of the app) |
+| @types/react, @types/react-dom, @types/node | MIT | Type definitions |
+
+Font: IBM Plex Sans Arabic (SIL Open Font License 1.1), self-hosted in `web/public/fonts/` with its
+licence file. A font, not a code library; OFL allows bundling and redistribution.
 
 ## Tools and services (not shipped in the product)
 

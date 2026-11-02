@@ -1,0 +1,70 @@
+name: Web
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - "shared/**"
+      - "scripts/export_json_schema.py"
+      - ".github/workflows/web.yml"
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "shared/**"
+      - "scripts/export_json_schema.py"
+      - ".github/workflows/web.yml"
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Licence guard (npm)
+        run: npm run licences
+      - name: Lint (ESLint + Prettier)
+        run: npm run lint
+      - name: Types
+        run: npm run typecheck
+      - name: Translation keys (en/ar)
+        run: npm run i18n:check
+      - name: Tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Bundle size
+        run: du -sh dist/assets/* | tee -a "$GITHUB_STEP_SUMMARY"
+
+  contract:
+    # The dashboard's TypeScript types must match the shared pydantic schemas.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - name: Install Python workspace
+        run: uv sync --all-packages --frozen
+      - name: JSON Schema is up to date
+        run: uv run python scripts/export_json_schema.py --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Generated types are up to date
+        working-directory: web
+        run: |
+          npm ci
+          npm run gen:types
+          git diff --exit-code -- src/api/types.ts
