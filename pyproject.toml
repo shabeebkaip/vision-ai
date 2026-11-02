@@ -6,12 +6,13 @@ requires-python = ">=3.10"
 readme = "README.md"
 
 [tool.uv.workspace]
-members = ["shared", "edge", "ml"]
+members = ["shared", "edge", "ml", "cloud"]
 
 [tool.uv.sources]
 vision-shared = { workspace = true }
 vision-edge = { workspace = true }
 vision-ml = { workspace = true }
+vision-cloud = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -26,7 +27,7 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-src = ["shared/src", "edge/src", "ml/src"]
+src = ["shared/src", "edge/src", "ml/src", "cloud/src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
@@ -37,9 +38,9 @@ python_version = "3.10"
 strict = true
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
-mypy_path = ["shared/src", "edge/src", "ml/src"]
+mypy_path = ["shared/src", "edge/src", "ml/src", "cloud/src"]
 explicit_package_bases = true
 
 [tool.pytest.ini_options]
-testpaths = ["shared/tests", "edge/tests", "ml/tests"]
+testpaths = ["shared/tests", "edge/tests", "ml/tests", "cloud/tests"]
 addopts = "-q"

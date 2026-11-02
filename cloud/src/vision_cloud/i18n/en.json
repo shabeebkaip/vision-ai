@@ -1,0 +1,10 @@
+{
+  "email.invitation.subject": "You are invited to {org} on Code-Ox Vision",
+  "email.invitation.body": "Hello,\n\n{inviter} invited you to join {org} on Code-Ox Vision as {role}.\n\nAccept the invitation and choose your password here (the link works for 7 days):\n{link}\n\nIf you did not expect this email you can ignore it.\n\nCode-Ox Vision",
+  "email.reset.subject": "Reset your Code-Ox Vision password",
+  "email.reset.body": "Hello,\n\nSomeone asked to reset the password for this email address on Code-Ox Vision.\n\nChoose a new password here (the link works for 1 hour):\n{link}\n\nIf it was not you, ignore this email; your password stays the same.\n\nCode-Ox Vision",
+  "role.owner": "owner",
+  "role.manager": "manager",
+  "role.site_manager": "site manager",
+  "role.viewer": "viewer"
+}

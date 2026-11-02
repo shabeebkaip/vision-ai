@@ -1,0 +1,10 @@
+{
+  "email.invitation.subject": "دعوة للانضمام إلى {org} على Code-Ox Vision",
+  "email.invitation.body": "مرحبًا،\n\nدعاك {inviter} للانضمام إلى {org} على Code-Ox Vision بصلاحية {role}.\n\nاقبل الدعوة واختر كلمة المرور من هذا الرابط (صالح لمدة 7 أيام):\n{link}\n\nإذا لم تكن تتوقع هذه الرسالة فيمكنك تجاهلها.\n\nCode-Ox Vision",
+  "email.reset.subject": "إعادة تعيين كلمة المرور في Code-Ox Vision",
+  "email.reset.body": "مرحبًا،\n\nطلب أحدهم إعادة تعيين كلمة المرور لهذا البريد الإلكتروني في Code-Ox Vision.\n\nاختر كلمة مرور جديدة من هذا الرابط (صالح لمدة ساعة واحدة):\n{link}\n\nإذا لم تكن أنت من طلب ذلك فتجاهل هذه الرسالة، وستبقى كلمة المرور كما هي.\n\nCode-Ox Vision",
+  "role.owner": "مالك",
+  "role.manager": "مدير",
+  "role.site_manager": "مدير موقع",
+  "role.viewer": "مشاهد"
+}
