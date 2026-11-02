@@ -1,0 +1,21 @@
+industry: warehouse
+name_en: Warehouse / distribution centre
+name_ar: مستودع / مركز توزيع
+zones:
+  - {role: dock, name_en: Loading dock, name_ar: رصيف التحميل, hint: "Where trucks park at the dock door"}
+  - {role: loading_bay, name_en: Loading bay, name_ar: منطقة التحميل, hint: "Floor inside the dock where staff load"}
+  - {role: restricted, name_en: Restricted area, name_ar: منطقة محظورة, hint: "Area nobody may enter"}
+lines:
+  - {role: gate, name_en: Vehicle gate, name_ar: بوابة المركبات, hint: "Across the gate, arrow pointing inside"}
+rules:
+  - {id: truck-dwell, name_en: Truck waiting at the dock too long, name_ar: شاحنة تنتظر عند الرصيف لفترة طويلة,
+     type: dwell_over, zone_role: dock, classes: [truck], min_duration_s: 2700, cooldown_s: 0}
+  - {id: restricted-entry, name_en: Person in restricted area, name_ar: شخص في منطقة محظورة, type: zone_occupancy_over,
+     zone_role: restricted, threshold: 0, min_duration_s: 3, cooldown_s: 300, severity: critical}
+  - {id: bay-idle, name_en: Loading bay idle for 30 minutes, name_ar: منطقة التحميل متوقفة منذ 30 دقيقة,
+     type: zone_empty, zone_role: loading_bay, min_duration_s: 1800, schedule: open, severity: info}
+  - {id: after-hours, name_en: Someone in the loading bay after hours, name_ar: شخص في منطقة التحميل خارج أوقات العمل,
+     type: presence_after_hours, zone_role: loading_bay, min_duration_s: 30, schedule: closed, severity: critical}
+  - {id: truck-arrivals, name_en: "Busy gate: 20+ trucks in an hour", name_ar: "بوابة مزدحمة: دخول أكثر من 20 شاحنة خلال ساعة",
+     type: line_crossing, line_role: gate, classes: [truck], direction: in, threshold: 20, window_s: 3600,
+     cooldown_s: 3600, severity: info}

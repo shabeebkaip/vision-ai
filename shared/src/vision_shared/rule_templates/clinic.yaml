@@ -1,0 +1,18 @@
+industry: clinic
+name_en: Clinic / medical centre
+name_ar: عيادة / مركز طبي
+zones:
+  - {role: waiting_area, name_en: Waiting area, name_ar: منطقة الانتظار, hint: "Floor of the waiting room"}
+  - {role: reception, name_en: Reception desk, name_ar: الاستقبال, hint: "Where reception staff stand or sit"}
+  - {role: pharmacy_queue, name_en: Pharmacy queue, name_ar: طابور الصيدلية, hint: "Floor in front of the pharmacy counter"}
+lines:
+  - {role: entrance, name_en: Entrance, name_ar: المدخل, hint: "Across the doorway, arrow pointing inside"}
+rules:
+  - {id: waiting-crowded, name_en: Waiting area crowded, name_ar: منطقة الانتظار مزدحمة, type: zone_occupancy_over,
+     zone_role: waiting_area, threshold: 12, min_duration_s: 600, cooldown_s: 1800, schedule: open}
+  - {id: reception-unattended, name_en: Reception unattended, name_ar: الاستقبال بدون موظف, type: zone_empty,
+     zone_role: reception, min_duration_s: 300, schedule: open}
+  - {id: pharmacy-queue, name_en: Pharmacy queue too long, name_ar: طابور الصيدلية طويل, type: queue_length_over,
+     zone_role: pharmacy_queue, threshold: 5, min_duration_s: 300, cooldown_s: 900, schedule: open}
+  - {id: after-hours, name_en: Someone in the waiting area after closing, name_ar: شخص في منطقة الانتظار بعد الإغلاق,
+     type: presence_after_hours, zone_role: waiting_area, min_duration_s: 30, schedule: closed, severity: critical}

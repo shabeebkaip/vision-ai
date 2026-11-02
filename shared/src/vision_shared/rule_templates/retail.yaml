@@ -1,0 +1,22 @@
+industry: retail
+name_en: Retail store / supermarket
+name_ar: متجر / سوبرماركت
+zones:
+  - {role: checkout_queue, name_en: Checkout queue, name_ar: طابور الدفع, hint: "Floor in front of the tills"}
+  - {role: service_desk, name_en: Service desk, name_ar: مكتب خدمة العملاء, hint: "Where staff stand at the desk"}
+  - {role: sales_floor, name_en: Sales floor, name_ar: صالة العرض, hint: "Main shop floor"}
+  - {role: stockroom_door, name_en: Stockroom door, name_ar: باب المستودع, hint: "Area in front of the stockroom door"}
+lines:
+  - {role: entrance, name_en: Entrance, name_ar: المدخل, hint: "Across the doorway, arrow pointing inside"}
+rules:
+  - {id: checkout-queue, name_en: Checkout queue too long, name_ar: طابور الدفع طويل, type: queue_length_over,
+     zone_role: checkout_queue, threshold: 4, min_duration_s: 90, cooldown_s: 900, schedule: open}
+  - {id: desk-unattended, name_en: Service desk unattended, name_ar: مكتب خدمة العملاء بدون موظف, type: zone_empty,
+     zone_role: service_desk, min_duration_s: 600, schedule: open}
+  - {id: floor-after-hours, name_en: Someone on the shop floor after closing, name_ar: شخص في صالة العرض بعد الإغلاق,
+     type: presence_after_hours, zone_role: sales_floor, min_duration_s: 20, schedule: closed, severity: critical}
+  - {id: stockroom-loitering, name_en: Person lingering at the stockroom door, name_ar: شخص يتواجد طويلًا عند باب المستودع,
+     type: dwell_over, zone_role: stockroom_door, min_duration_s: 120}
+  - {id: busy-hour, name_en: "Busy hour: 100+ shoppers came in", name_ar: "ساعة ذروة: دخل أكثر من 100 متسوق",
+     type: line_crossing, line_role: entrance, direction: in, threshold: 100, window_s: 3600, cooldown_s: 3600,
+     schedule: open, severity: info}

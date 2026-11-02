@@ -1,0 +1,18 @@
+industry: factory
+name_en: Factory / production line
+name_ar: مصنع / خط إنتاج
+zones:
+  - {role: machine_guard, name_en: Machine danger zone, name_ar: منطقة خطر الآلة, hint: "Area around a machine nobody may enter while running"}
+  - {role: station, name_en: Line station, name_ar: محطة خط الإنتاج, hint: "Where the operator stands"}
+  - {role: restricted, name_en: Restricted area, name_ar: منطقة محظورة, hint: "Area nobody may enter"}
+  - {role: production_floor, name_en: Production floor, name_ar: صالة الإنتاج, hint: "Main floor"}
+rules:
+  - {id: machine-zone, name_en: Person inside machine danger zone, name_ar: شخص داخل منطقة خطر الآلة,
+     type: zone_occupancy_over, zone_role: machine_guard, threshold: 0, min_duration_s: 2, cooldown_s: 120,
+     schedule: open, severity: critical}
+  - {id: station-unattended, name_en: Line station unattended, name_ar: محطة خط الإنتاج بدون مشغل, type: zone_empty,
+     zone_role: station, min_duration_s: 300, schedule: open}
+  - {id: restricted-entry, name_en: Person in restricted area, name_ar: شخص في منطقة محظورة, type: zone_occupancy_over,
+     zone_role: restricted, threshold: 0, min_duration_s: 3, cooldown_s: 300, severity: critical}
+  - {id: after-hours, name_en: Someone on the production floor after hours, name_ar: شخص في صالة الإنتاج خارج أوقات العمل,
+     type: presence_after_hours, zone_role: production_floor, min_duration_s: 30, schedule: closed, severity: critical}

@@ -1,0 +1,17 @@
+industry: hotel
+name_en: Hotel
+name_ar: فندق
+zones:
+  - {role: checkin_queue, name_en: Check-in queue, name_ar: طابور تسجيل الدخول, hint: "Floor in front of the front desk"}
+  - {role: front_desk, name_en: Front desk, name_ar: مكتب الاستقبال, hint: "Behind the front desk"}
+  - {role: pool, name_en: Pool deck, name_ar: المسبح, hint: "Pool deck floor; opening hours = pool hours"}
+  - {role: service_door, name_en: Back-of-house door, name_ar: باب منطقة الخدمة, hint: "In front of the staff-only door"}
+rules:
+  - {id: checkin-queue, name_en: Check-in queue too long, name_ar: طابور تسجيل الدخول طويل, type: queue_length_over,
+     zone_role: checkin_queue, threshold: 3, min_duration_s: 180, cooldown_s: 900}
+  - {id: desk-unattended, name_en: Front desk unattended, name_ar: مكتب الاستقبال بدون موظف, type: zone_empty,
+     zone_role: front_desk, min_duration_s: 300}
+  - {id: pool-after-hours, name_en: Someone at the pool outside opening hours, name_ar: شخص في المسبح خارج أوقات التشغيل,
+     type: presence_after_hours, zone_role: pool, min_duration_s: 20, schedule: closed, severity: critical}
+  - {id: service-door-loitering, name_en: Person lingering at the service door, name_ar: شخص يتواجد طويلًا عند باب منطقة الخدمة,
+     type: dwell_over, zone_role: service_door, min_duration_s: 120}
