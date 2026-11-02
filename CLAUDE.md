@@ -19,7 +19,7 @@ camera (RTSP via NVR) → `edge/ingest` frame source (5–10 fps, reconnects) �
 detector (RF-DETR; ONNX/TensorRT in production) → `edge/tracking` ByteTrack-style tracker (our own, ADR 007) →
 `edge/scene` zones and lines (normalised 0–1 coordinates) → `edge/rules` rules engine (six MVP rule
 types, schedules, cooldowns, hysteresis) → `edge/events` event + snapshot + clip → `edge/sinks`
-(outbox to cloud, Telegram/console in dev). The cloud (`cloud/`, FastAPI + PostgreSQL) stores events,
+(SQLite outbox shipped to the cloud by `edge/uploader`, EDG-12; Telegram/console in dev). The cloud (`cloud/`, FastAPI + PostgreSQL) stores events,
 dispatches WhatsApp/Telegram alerts, runs the AI second-opinion check and serves the dashboard
 (`web/`, React). `shared/` holds the pydantic schemas every part speaks. `ml/` holds the evaluation
 harness and training tools.
@@ -45,7 +45,7 @@ uv run pytest                          # all tests
 uv run ruff check . && uv run ruff format --check .
 uv run mypy shared/src edge/src ml/src
 uv run python scripts/licence_check.py # fails on banned or non-permissive licences
-uv run vision-edge --help              # edge CLI: run, detect-file, check-camera
+uv run vision-edge --help              # edge CLI: run, upload, detect-file, survey, check-camera
 uv run vision-eval run --strict        # harness: score the pipeline against test-videos/manifest.yaml
 ```
 
