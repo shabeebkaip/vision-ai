@@ -1,0 +1,32 @@
+# Template for a real camera on a Hikvision NVR (sub-stream of channel 1 = .../Channels/102).
+# Put credentials in the URL only on the edge box; never commit real passwords.
+# Check the stream first:  uv run vision-edge check-camera "rtsp://USER:PASS@NVR_IP:554/Streaming/Channels/102"
+id: codeox-riyadh-office
+name: Code-Ox Riyadh office
+timezone: Asia/Riyadh
+cameras:
+  - id: reception
+    name: Reception
+    source: rtsp://USER:PASS@NVR_IP:554/Streaming/Channels/102
+    fps: 5
+    zones:
+      - id: desk
+        name: Reception desk
+        polygon: [[0.40, 0.45], [0.75, 0.45], [0.75, 0.90], [0.40, 0.90]]
+      - id: waiting
+        name: Waiting area
+        polygon: [[0.05, 0.50], [0.38, 0.50], [0.38, 0.98], [0.05, 0.98]]
+    lines:
+      - id: door
+        name: Main door
+        start: [0.10, 0.40]
+        end: [0.35, 0.40]
+rules:
+  - {id: desk_unattended, type: zone_empty, camera_id: reception, zone_id: desk, min_duration_s: 300,
+     schedule: {days: [7, 1, 2, 3, 4], start: "09:00", end: "18:00"}}
+  - {id: waiting_crowded, type: zone_occupancy_over, camera_id: reception, zone_id: waiting,
+     threshold: 4, min_duration_s: 120}
+  - {id: after_hours, type: presence_after_hours, camera_id: reception, zone_id: waiting, min_duration_s: 10,
+     severity: critical, schedule: {start: "20:00", end: "07:00"}}
+  - {id: visitors, type: line_crossing, camera_id: reception, line_id: door, direction: in,
+     threshold: 20, window_s: 3600, severity: info}

@@ -1,0 +1,45 @@
+[project]
+name = "codeox-vision"
+version = "0.1.0"
+description = "Code-Ox Vision: real-time operational alerts from existing CCTV cameras"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.uv.workspace]
+members = ["shared", "edge", "ml"]
+
+[tool.uv.sources]
+vision-shared = { workspace = true }
+vision-edge = { workspace = true }
+vision-ml = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+    "types-PyYAML>=6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["shared/src", "edge/src", "ml/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "E501"]  # line length is enforced by `ruff format`
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+mypy_path = ["shared/src", "edge/src", "ml/src"]
+explicit_package_bases = true
+
+[tool.pytest.ini_options]
+testpaths = ["shared/tests", "edge/tests", "ml/tests"]
+addopts = "-q"
