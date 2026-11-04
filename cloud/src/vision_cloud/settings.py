@@ -34,6 +34,15 @@ class CloudSettings(BaseSettings):
     # --- encryption of camera stream URLs at rest (Fernet key, urlsafe base64 of 32 bytes)
     field_encryption_key: SecretStr
 
+    # --- background jobs (CLD-17)
+    redis_url: str | None = Field(
+        default=None, description="redis://host:6379/0. Unset: jobs are only logged (no worker)."
+    )
+    job_max_retries: int = Field(default=3, ge=0, le=10)
+    job_retry_intervals_s: list[int] = Field(default_factory=lambda: [10, 60, 300])
+    job_dead_letter_ttl_days: float = Field(default=30, gt=0)
+    job_timeout_s: int = Field(default=120, gt=0)
+
     # --- object storage (CLD-06)
     storage_backend: Literal["s3", "local"] = "s3"
     storage_bucket: str = "vision-media"

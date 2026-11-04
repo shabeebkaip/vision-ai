@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import os
 import secrets
 import sys
@@ -21,6 +22,7 @@ from alembic.config import Config
 from sqlalchemy import select
 
 from vision_cloud.db import make_engine, make_session_factory, system_session
+from vision_cloud.jobs import RqQueue
 from vision_cloud.models import User
 from vision_cloud.security import (
     FieldCipher,
@@ -123,6 +125,47 @@ def cmd_gen_keys(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_worker(args: argparse.Namespace) -> int:
+    from vision_cloud.worker import run_worker
+
+    run_worker(CloudSettings(), burst=args.burst)
+    return 0
+
+
+def _rq_queue() -> RqQueue:
+    from vision_cloud.jobs import queue_from_settings
+
+    queue = queue_from_settings(CloudSettings())
+    if not isinstance(queue, RqQueue):
+        raise SystemExit("set VISION_CLOUD_REDIS_URL")
+    return queue
+
+
+def cmd_jobs_failed(args: argparse.Namespace) -> int:
+    from vision_cloud.worker import failed_jobs
+
+    jobs = failed_jobs(_rq_queue())
+    for j in jobs:
+        when = j.failed_at.isoformat(timespec="seconds") if j.failed_at else "-"
+        print(f"{j.id}  {when}  {j.name}  attempts={j.attempts}  {json.dumps(j.payload)}")
+        last = j.error.splitlines()[-1] if j.error else ""
+        print(f"    {last}")
+        if args.traceback and j.error:
+            print("    " + j.error.replace("\n", "\n    "))
+    print(f"{len(jobs)} failed job(s)")
+    return 0
+
+
+def cmd_jobs_retry(args: argparse.Namespace) -> int:
+    from vision_cloud.worker import retry_failed
+
+    if not args.all and not args.ids:
+        raise SystemExit("name job ids or pass --all")
+    n = retry_failed(_rq_queue(), None if args.all else args.ids)
+    print(f"requeued {n} job(s)")
+    return 0 if args.all or n == len(args.ids) else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vision-cloud", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -148,6 +191,21 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("gen-keys", help="print fresh secret keys for .env")
     p.set_defaults(func=cmd_gen_keys)
+
+    p = sub.add_parser("worker", help="run background jobs (needs VISION_CLOUD_REDIS_URL)")
+    p.add_argument("--burst", action="store_true", help="run what is queued, then exit")
+    p.set_defaults(func=cmd_worker)
+
+    jobs = sub.add_parser("jobs", help="inspect the job queue").add_subparsers(
+        dest="jobs_cmd", required=True
+    )
+    p = jobs.add_parser("failed", help="list dead-lettered jobs with their errors")
+    p.add_argument("--traceback", action="store_true")
+    p.set_defaults(func=cmd_jobs_failed)
+    p = jobs.add_parser("retry", help="put dead-lettered jobs back on the queue")
+    p.add_argument("ids", nargs="*")
+    p.add_argument("--all", action="store_true")
+    p.set_defaults(func=cmd_jobs_retry)
 
     args = parser.parse_args(argv)
     result: int = args.func(args)

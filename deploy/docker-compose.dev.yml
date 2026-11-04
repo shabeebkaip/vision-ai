@@ -75,6 +75,7 @@ services:
       retries: 30
 
   # One-shot: creates the media bucket and the test-video library bucket (VID-03), then exits.
+  # Idempotent: only missing buckets are created, so later `up`s succeed too.
   s3-setup:
     image: chrislusf/seaweedfs:4.50
     depends_on:
@@ -82,8 +83,12 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
-        printf 's3.bucket.create -name vision-media\ns3.bucket.create -name cv-test-videos\ns3.bucket.list\n'
-        | weed shell -master=s3:9333
+        existing=$$(echo s3.bucket.list | weed shell -master=s3:9333) &&
+        for b in vision-media cv-test-videos; do
+        echo "$$existing" | grep -qE "^ +$$b[[:space:]]" ||
+        echo "s3.bucket.create -name $$b" | weed shell -master=s3:9333 || exit 1;
+        done &&
+        echo s3.bucket.list | weed shell -master=s3:9333
 
   migrate:
     build:
@@ -96,15 +101,16 @@ services:
       VISION_CLOUD_DATABASE_URL: postgresql+psycopg://vision_owner:${VISION_DEV_DB_OWNER_PASSWORD:-vision-owner-dev}@postgres:5432/vision
     command: ["vision-cloud", "migrate"]
 
-  api:
+  api: &cloud
     image: codeox/vision-cloud:dev
     depends_on:
       migrate: {condition: service_completed_successfully}
       s3-setup: {condition: service_completed_successfully}
       redis: {condition: service_healthy}
     ports: ["127.0.0.1:8000:8000"]
-    environment:
+    environment: &cloud-env
       VISION_CLOUD_ENVIRONMENT: dev
+      VISION_CLOUD_REDIS_URL: redis://redis:6379/0
       # The API connects as vision_app: no superuser, no BYPASSRLS, so row-level security applies.
       VISION_CLOUD_DATABASE_URL: postgresql+psycopg://vision_app:${VISION_DEV_DB_APP_PASSWORD:-vision-app-dev}@postgres:5432/vision
       VISION_CLOUD_JWT_SECRET: ${VISION_CLOUD_JWT_SECRET:?run uv run vision-cloud gen-keys}
@@ -118,6 +124,15 @@ services:
       VISION_CLOUD_PUBLIC_BASE_URL: http://localhost:8000
       VISION_CLOUD_CORS_ORIGINS: '["http://localhost:5173"]'
       VISION_CLOUD_LOG_JSON: "false"
+
+  # Background jobs (CLD-17): alert dispatch and other queued work. `vision-cloud jobs failed`
+  # inside this container lists the dead-letter jobs.
+  worker:
+    <<: *cloud
+    ports: []
+    environment: *cloud-env
+    command: ["vision-cloud", "worker"]
+    healthcheck: {disable: true}
 
   # Dashboard dev server. VITE_API_BASE_URL empty = built-in demo data (the default until the
   # dashboard and API contracts are aligned); set it to http://localhost:8000/api/v1 to use the API.
