@@ -87,6 +87,16 @@ Payloads are in `shared/src/vision_shared/api.py`; the full schema is at `/docs`
 ## Not done yet
 
 Password reset and 2FA (CLD-03), rate limits (CLD-05, CLD-19), storage lifecycle rules and delete
-jobs (CLD-06), zones/aggregates query endpoints (CLD-07), alert dispatch itself (CLD-08b:
-grouping, recipient selection, delivery log; CLD-08c: acknowledgement and escalation), alert
-channels (CLD-09 WhatsApp, CLD-10 Telegram), plan limits (CLD-18), staging deployment (CLD-20).
+jobs (CLD-06), zones/aggregates query endpoints (CLD-07), alert acknowledgement and escalation
+(CLD-08c), real alert channels (CLD-09 WhatsApp, CLD-10 Telegram; until then alerts are logged by
+the dry-run channel), plan limits (CLD-18), staging deployment (CLD-20).
+
+## Alerts (CLD-08)
+
+The worker turns every new event into an alert. Events of the same camera and rule within 2 minutes
+of each other (`VISION_CLOUD_ALERT_GROUP_WINDOW_S`) are one alert with a count, so a burst of 30
+events is one message. A new alert goes to every enabled recipient for that site (or all sites) at
+or above their minimum severity, following that rule (or all rules), without an escalation rank or
+with rank 1. During a recipient's quiet hours and after their daily cap only critical alerts are
+sent; the rest are kept in the delivery log (`notifications`) as `suppressed` with the reason.
+Messages are in the recipient's language (English or Arabic, `services/messages.py`).
