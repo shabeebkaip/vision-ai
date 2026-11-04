@@ -43,6 +43,15 @@ class CloudSettings(BaseSettings):
     job_dead_letter_ttl_days: float = Field(default=30, gt=0)
     job_timeout_s: int = Field(default=120, gt=0)
 
+    # --- alert dispatch (CLD-08)
+    alert_group_window_s: float = Field(
+        default=120, gt=0, description="events of one camera and rule this close form one alert"
+    )
+    alert_dry_run: bool = Field(
+        default=True,
+        description="log alerts instead of sending them; set false once channels are configured",
+    )
+
     # --- object storage (CLD-06)
     storage_backend: Literal["s3", "local"] = "s3"
     storage_bucket: str = "vision-media"
