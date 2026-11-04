@@ -70,6 +70,7 @@ Dashboard (`Authorization: Bearer <access token>`): `/api/v1/auth/*`, `/api/v1/s
 `/api/v1/invitations`, `/api/v1/recipients` (who gets alerts: channel, sites, rules, minimum
 severity, quiet hours, daily cap, escalation rank; site manager or higher),
 `/api/v1/sites/{id}/recipients` (names and channels only, for the rule builder),
+`/api/v1/alerts` (grouped alerts, delivery log, acknowledge),
 `/api/v1/admin/organisations` (Code-Ox admin).
 
 Edge box (`Authorization: Bearer <device token>` from enrolment), all under `/device/v1`:
@@ -87,8 +88,7 @@ Payloads are in `shared/src/vision_shared/api.py`; the full schema is at `/docs`
 ## Not done yet
 
 Password reset and 2FA (CLD-03), rate limits (CLD-05, CLD-19), storage lifecycle rules and delete
-jobs (CLD-06), zones/aggregates query endpoints (CLD-07), alert acknowledgement and escalation
-(CLD-08c), real alert channels (CLD-09 WhatsApp, CLD-10 Telegram; until then alerts are logged by
+jobs (CLD-06), zones/aggregates query endpoints (CLD-07), real alert channels (CLD-09 WhatsApp, CLD-10 Telegram; until then alerts are logged by
 the dry-run channel), plan limits (CLD-18), staging deployment (CLD-20).
 
 ## Alerts (CLD-08)
@@ -100,3 +100,10 @@ or above their minimum severity, following that rule (or all rules), without an 
 with rank 1. During a recipient's quiet hours and after their daily cap only critical alerts are
 sent; the rest are kept in the delivery log (`notifications`) as `suppressed` with the reason.
 Messages are in the recipient's language (English or Arabic, `services/messages.py`).
+
+Escalation: when a critical alert opens (or a grouped event makes it critical), a check is scheduled
+for 10 minutes later (`VISION_CLOUD_ALERT_ESCALATION_AFTER_S`). If nobody has acknowledged it by
+then, recipients with escalation rank 2 get an "escalated" message, then rank 3 ten minutes later,
+until the chain ends. Acknowledging stops it: `POST /api/v1/alerts/{id}/acknowledge` ("I'm on it"),
+or feedback on one of its events. `GET /api/v1/alerts` and `GET /api/v1/alerts/{id}` show alerts
+with their delivery log (recipient names, never addresses).

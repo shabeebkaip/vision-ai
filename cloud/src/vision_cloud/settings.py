@@ -47,6 +47,10 @@ class CloudSettings(BaseSettings):
     alert_group_window_s: float = Field(
         default=120, gt=0, description="events of one camera and rule this close form one alert"
     )
+    alert_escalation_after_s: float = Field(
+        default=600, gt=0, description="an unacknowledged alert goes to the next rank after this"
+    )
+    alert_escalate_severities: list[str] = Field(default_factory=lambda: ["critical"])
     alert_dry_run: bool = Field(
         default=True,
         description="log alerts instead of sending them; set false once channels are configured",

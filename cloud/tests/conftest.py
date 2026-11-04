@@ -23,15 +23,18 @@ import pytest
 from alembic import command
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, make_url, text
+from sqlalchemy import create_engine, make_url, select, text
 
 from vision_cloud.app import create_app
 from vision_cloud.cli import alembic_config
 from vision_cloud.db import Base, make_engine, system_session
 from vision_cloud.jobs import InMemoryQueue
-from vision_cloud.models import User
+from vision_cloud.models import Notification, User
 from vision_cloud.security import generate_field_key, hash_password
+from vision_cloud.services import channels
+from vision_cloud.services.channels import DryRunChannel
 from vision_cloud.settings import CloudSettings
+from vision_cloud.worker import HANDLERS, WorkerContext, _load_handlers
 
 PG_URL = os.environ.get("VISION_CLOUD_TEST_POSTGRES_URL", "")
 REQUIRE_PG = os.environ.get("VISION_CLOUD_REQUIRE_POSTGRES") == "1"
@@ -327,3 +330,33 @@ def world(app: FastAPI, client: TestClient) -> World:
         a=build_tenant(client, admin_token, "Alpha"),
         b=build_tenant(client, admin_token, "Bravo"),
     )
+
+
+# --------------------------------------------------------------------------- alerting (CLD-08)
+
+
+@pytest.fixture
+def ctx(app: FastAPI, queue: InMemoryQueue) -> Iterator[WorkerContext]:
+    """A worker context on the test app's database, with a fresh dry-run channel that records
+    what people would have received."""
+    _load_handlers()
+    st = app.state.vision
+    original = channels._dry_run
+    channels._dry_run = DryRunChannel()
+    yield WorkerContext(st.settings, st.sessions, st.storage, queue, st.cipher)
+    channels._dry_run = original
+
+
+@pytest.fixture
+def clean_queue(queue: InMemoryQueue, world: World, ctx: WorkerContext) -> InMemoryQueue:
+    """The world's queue after its own setup event was dispatched and forgotten."""
+    while queue.jobs:
+        name, payload = queue.jobs.pop(0)
+        HANDLERS[name](ctx, payload)
+    queue.delayed.clear()
+    channels._dry_run.sent.clear()
+    with system_session(ctx.sessions) as db:
+        for n in db.scalars(select(Notification)).all():
+            db.delete(n)
+        db.commit()
+    return queue

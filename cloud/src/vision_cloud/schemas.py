@@ -392,3 +392,45 @@ class RecipientSummary(_Out):
     name: str
     name_ar: str
     channel: str
+
+
+# --------------------------------------------------------------------------- alerts (CLD-08)
+
+
+class AlertOut(_Out):
+    id: str
+    site_id: str
+    camera_id: str
+    rule_id: str
+    rule_type: str
+    severity: str
+    status: str
+    event_count: int
+    first_event_id: str
+    last_event_id: str
+    message: str
+    opened_at: datetime
+    last_event_at: datetime
+    acknowledged_at: datetime | None
+    acknowledged_by: str | None
+    escalation_level: int
+
+
+class DeliveryOut(BaseModel):
+    """One row of the delivery log, without the address (personal data)."""
+
+    id: str
+    recipient_id: str | None
+    recipient_name: str
+    channel: str
+    kind: str
+    status: str
+    reason: str | None
+    attempts: int
+    last_error: str | None
+    sent_at: datetime | None
+    created_at: datetime
+
+
+class AlertDetail(AlertOut):
+    deliveries: list[DeliveryOut]
