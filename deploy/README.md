@@ -15,11 +15,12 @@ Docker files for running Code-Ox Vision:
 | Service | What it is | On the host |
 | --- | --- | --- |
 | `postgres` | PostgreSQL 16; `vision_owner` owns the schema, the API connects as `vision_app` | `127.0.0.1:5432` |
-| `redis` | Redis 7.2 | `127.0.0.1:6379` |
+| `redis` | Redis 7.2, job queue (CLD-17) | `127.0.0.1:6379` |
 | `s3` | SeaweedFS, S3-compatible object storage (stands in for MinIO, see below) | `http://127.0.0.1:9000` |
 | `s3-setup` | One-shot: creates buckets `vision-media` and `cv-test-videos` | |
 | `migrate` | One-shot: `vision-cloud migrate` as the schema owner | |
 | `api` | Cloud API | `http://localhost:8000/docs` |
+| `worker` | Background jobs (`vision-cloud worker`); `docker compose exec worker vision-cloud jobs failed` lists the dead-letter jobs | |
 | `web` | Dashboard dev server (Vite) | `http://localhost:5173` |
 | `mediamtx` | Fake cameras: four clips looped as RTSP, H.264 1280×720 10 fps like an NVR sub-stream | `rtsp://127.0.0.1:8554/cam1` … `cam4` |
 | `edge-cam1` … `edge-cam4` | Edge pipeline, one container per camera (the CLI runs one camera per process), config `dev/site.yaml` | |

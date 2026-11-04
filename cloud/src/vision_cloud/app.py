@@ -13,7 +13,7 @@ from vision_cloud import errors
 from vision_cloud.api import auth, device, events, manage, storage_local
 from vision_cloud.api.deps import AppState, StateDep
 from vision_cloud.db import make_engine, make_session_factory
-from vision_cloud.jobs import JobQueue, LoggingQueue
+from vision_cloud.jobs import JobQueue, queue_from_settings
 from vision_cloud.security import FieldCipher
 from vision_cloud.settings import CloudSettings
 from vision_cloud.storage import LocalStorage, ObjectStorage, storage_from_settings
@@ -48,7 +48,7 @@ def create_app(
         settings=settings,
         sessions=make_session_factory(engine),
         storage=storage or storage_from_settings(settings),
-        queue=queue or LoggingQueue(),
+        queue=queue or queue_from_settings(settings),
         cipher=FieldCipher(settings.field_encryption_key.get_secret_value()),
         engine=engine,
     )

@@ -23,6 +23,7 @@ banned packages and copyleft or non-commercial licences.
 | psycopg[binary] (psycopg, psycopg-binary) | LGPL-3.0 (used as an unmodified, dynamically imported library) | PostgreSQL driver for SQLAlchemy (CLD-01) |
 | argon2-cffi (+ argon2-cffi-bindings, cffi MIT-0, pycparser BSD-3) | MIT | Password hashing, argon2id (CLD-03, ADR 008) |
 | pyjwt | MIT | Short-lived HS256 access tokens (CLD-03, ADR 008) |
+| rq (+ croniter MIT, click BSD-3) | BSD-2 | Background jobs: Redis queue, worker, retries, delayed jobs, failed-job registry (CLD-17) |
 | cryptography | Apache-2.0 OR BSD-3-Clause | Fernet encryption of camera stream URLs at rest (CLD-01) |
 | Transitive cloud dependencies: starlette, click, markupsafe (BSD-3); mako, h11, jmespath, urllib3, annotated-doc (MIT); botocore, s3transfer, opentelemetry-api (Apache-2.0, via boto3 / FastAPI); python-dateutil (Apache-2.0 / BSD) | as listed | Pulled in by FastAPI, Alembic and boto3; checked by `scripts/licence_check.py` |
 | anthropic | MIT | AI second opinion (CLD-12) |
