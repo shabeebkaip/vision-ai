@@ -112,17 +112,7 @@ def _audit(
 # --------------------------------------------------------------------------- sites
 
 
-@router.get("/sites", response_model=list[SiteOut], tags=["sites"])
-def list_sites(principal: PrincipalDep, db: DbDep) -> list[Site]:
-    return list(
-        db.scalars(
-            select(Site)
-            .where(
-                Site.organisation_id == principal.organisation_id, principal.site_filter(Site.id)
-            )
-            .order_by(Site.name, Site.id)
-        ).all()
-    )
+# GET /sites (with camera counts and alerts today) lives in api/dashboard.py.
 
 
 @router.post("/sites", response_model=SiteOut, status_code=201, tags=["sites"])

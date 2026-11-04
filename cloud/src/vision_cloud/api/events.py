@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request
 from sqlalchemy import and_, or_, select
@@ -16,7 +16,7 @@ from vision_cloud.errors import AppError, not_found
 from vision_cloud.models import Alert, EventFeedback, EventRow, EventStatus, Role
 from vision_cloud.schemas import EventDetail, EventOut, EventPage, FeedbackIn, FeedbackOut
 from vision_cloud.services.dispatch import acknowledge
-from vision_shared.schemas import EventState, Severity
+from vision_shared.schemas import EventState, RuleType, Severity
 
 router = APIRouter(prefix="/api/v1", tags=["events"])
 
@@ -77,10 +77,15 @@ def list_events(
     site_id: Annotated[str | None, Query()] = None,
     camera_id: Annotated[str | None, Query()] = None,
     rule_id: Annotated[str | None, Query()] = None,
+    rule_type: Annotated[RuleType | None, Query()] = None,
     severity: Annotated[list[Severity] | None, Query()] = None,
     state: Annotated[EventState | None, Query()] = None,
     status: Annotated[EventStatus | None, Query()] = None,
     verified: Annotated[bool | None, Query()] = None,
+    verdict: Annotated[
+        Literal["correct", "false_alarm", "none"] | None,
+        Query(description="latest feedback; none = not reviewed yet"),
+    ] = None,
     from_: Annotated[
         datetime | None, Query(alias="from", description="triggered at or after")
     ] = None,
@@ -101,6 +106,8 @@ def list_events(
         stmt = stmt.where(EventRow.camera_id == camera_id)
     if rule_id:
         stmt = stmt.where(EventRow.rule_id == rule_id)
+    if rule_type:
+        stmt = stmt.where(EventRow.rule_type == rule_type.value)
     if severity:
         stmt = stmt.where(EventRow.severity.in_([s.value for s in severity]))
     if state:
@@ -109,6 +116,10 @@ def list_events(
         stmt = stmt.where(EventRow.status == status.value)
     if verified is not None:
         stmt = stmt.where(EventRow.verified.is_(verified))
+    if verdict == "none":
+        stmt = stmt.where(EventRow.verified.is_(None))
+    elif verdict is not None:
+        stmt = stmt.where(EventRow.verified.is_(verdict == "correct"))
     if from_:
         stmt = stmt.where(EventRow.triggered_at >= from_)
     if to:
