@@ -50,7 +50,9 @@ def local_day(day: date, timezone: str) -> tuple[datetime, datetime]:
     """[start, end) of a local calendar day, as UTC datetimes."""
     tz = ZoneInfo(timezone)
     start = datetime.combine(day, time.min, tzinfo=tz)
-    return start.astimezone(ZoneInfo("UTC")), (start + timedelta(days=1)).astimezone(ZoneInfo("UTC"))
+    return start.astimezone(ZoneInfo("UTC")), (start + timedelta(days=1)).astimezone(
+        ZoneInfo("UTC")
+    )
 
 
 def today_in(timezone: str) -> date:
@@ -149,7 +151,9 @@ def site_overview(
     site_id: str,
     principal: PrincipalDep,
     db: DbDep,
-    day: Annotated[date | None, Query(alias="date", description="local date; default today")] = None,
+    day: Annotated[
+        date | None, Query(alias="date", description="local date; default today")
+    ] = None,
 ) -> SiteOverview:
     site = get_site(db, principal, site_id)
     tz = site.timezone
@@ -208,7 +212,9 @@ def site_overview(
         alerts_by_type=dict(by_type),
         false_alert_rate_7d=false_rate,
         reviewed_7d=n_reviewed,
-        footfall_by_hour=[HourlyFootfall(hour=h, **{"in": v[0]}, out=v[1]) for h, v in hours.items()],
+        footfall_by_hour=[
+            HourlyFootfall(hour=h, **{"in": v[0]}, out=v[1]) for h, v in hours.items()
+        ],
         cameras_online=online,
         cameras_total=total,
     )
@@ -315,8 +321,17 @@ def create_site_rule(
                     organisation_id=principal.organisation_id, recipient_id=r.id, rule_id=rule_id
                 )
             )
-    _audit(db, request, principal, "rule.created", "rule", row.id,
-           {"type": row.type, "recipients": len(recipients)})
+    _audit(
+        db,
+        request,
+        principal,
+        "rule.created",
+        "rule",
+        row.id,
+        {"type": row.type, "recipients": len(recipients)},
+    )
     db.commit()
     db.expire_all()
-    return RuleWithRecipients(rule=rule_out(row), recipient_ids=alerted_by(db, site.id, [row])[row.id])
+    return RuleWithRecipients(
+        rule=rule_out(row), recipient_ids=alerted_by(db, site.id, [row])[row.id]
+    )
