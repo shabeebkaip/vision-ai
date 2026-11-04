@@ -84,7 +84,8 @@ def _lock_group(db: Session, camera_id: str, rule_id: str) -> None:
         )
 
 
-def _group(db: Session, event: EventRow, window_s: float) -> tuple[Alert, bool]:
+def _group(db: Session, event: EventRow, window_s: float) -> tuple[Alert, bool, bool]:
+    """(alert, opened a new one, raised an existing one's severity)"""
     _lock_group(db, event.camera_id, event.rule_id)
     alert = db.scalar(
         select(Alert)
@@ -109,9 +110,10 @@ def _group(db: Session, event: EventRow, window_s: float) -> tuple[Alert, bool]:
         if event.triggered_at < alert.opened_at:
             alert.opened_at = event.triggered_at
             alert.first_event_id = event.id
-        if SEVERITY_RANK.get(event.severity, 1) > SEVERITY_RANK.get(alert.severity, 1):
+        raised = SEVERITY_RANK.get(event.severity, 1) > SEVERITY_RANK.get(alert.severity, 1)
+        if raised:
             alert.severity = event.severity
-        return alert, False
+        return alert, False, raised
     alert = Alert(
         organisation_id=event.organisation_id,
         site_id=event.site_id,
@@ -128,10 +130,17 @@ def _group(db: Session, event: EventRow, window_s: float) -> tuple[Alert, bool]:
     )
     db.add(alert)
     db.flush()
-    return alert, True
+    return alert, True, False
 
 
-def recipients_for(db: Session, alert: Alert) -> list[Recipient]:
+def recipients_for(db: Session, alert: Alert, rank: int | None = None) -> list[Recipient]:
+    """Recipients of the first message (`rank` None: no rank or rank 1), or of escalation
+    level `rank` (exactly that rank)."""
+    in_chain = (
+        or_(Recipient.escalation_rank.is_(None), Recipient.escalation_rank <= 1)
+        if rank is None
+        else Recipient.escalation_rank == rank
+    )
     follows_rule = or_(
         ~Recipient.rules.any(),
         Recipient.rules.any(RecipientRule.rule_id == alert.rule_id),
@@ -142,7 +151,7 @@ def recipients_for(db: Session, alert: Alert) -> list[Recipient]:
             Recipient.organisation_id == alert.organisation_id,
             Recipient.enabled.is_(True),
             or_(Recipient.site_id.is_(None), Recipient.site_id == alert.site_id),
-            or_(Recipient.escalation_rank.is_(None), Recipient.escalation_rank <= 1),
+            in_chain,
             follows_rule,
         )
         .order_by(Recipient.created_at, Recipient.id)
@@ -206,8 +215,17 @@ def on_event_created(ctx: WorkerContext, payload: dict[str, Any]) -> None:
             return
         if event.alert_id is not None:
             return  # already dispatched (job ran twice)
-        alert, opened = _group(db, event, ctx.settings.alert_group_window_s)
+        alert, opened, raised = _group(db, event, ctx.settings.alert_group_window_s)
         event.alert_id = alert.id
+        # Schedule escalation once: when the alert opens with an escalating severity, or when a
+        # grouped event raises it to one. Rescheduling on every grouped event would keep pushing
+        # the escalation back during a long burst.
+        escalate = (
+            (opened or raised)
+            and alert.status == AlertStatus.OPEN.value
+            and alert.escalation_level == 0
+            and alert.severity in ctx.settings.alert_escalate_severities
+        )
         if opened:
             site = db.get(Site, event.site_id)
             tz = site.timezone if site else "Asia/Riyadh"
@@ -222,12 +240,78 @@ def on_event_created(ctx: WorkerContext, payload: dict[str, Any]) -> None:
             )
         else:
             log.info("dispatch.grouped", alert_id=alert.id, event_count=alert.event_count)
+        alert_id = alert.id
         db.commit()
     for notification_id in to_send:  # after the commit, so the job sees the row
         ctx.queue.enqueue(
             "notification.send",
             {"organisation_id": payload["organisation_id"], "notification_id": notification_id},
         )
+    if escalate:  # also when a grouped event raised the alert to critical; same job id = once
+        schedule_escalation(ctx, payload["organisation_id"], alert_id, rank=2)
+
+
+# --------------------------------------------------------------------------- escalation (CLD-08c)
+
+
+def schedule_escalation(ctx: WorkerContext, org_id: str, alert_id: str, rank: int) -> None:
+    ctx.queue.enqueue_in(
+        ctx.settings.alert_escalation_after_s,
+        "alert.escalate",
+        {"organisation_id": org_id, "alert_id": alert_id, "rank": rank},
+        job_id=f"escalate-{alert_id}-{rank}",
+    )
+
+
+def acknowledge(alert: Alert, by: str) -> bool:
+    """Mark an open alert acknowledged ("I'm on it"); stops escalation. False if it already was."""
+    if alert.status != AlertStatus.OPEN.value:
+        return False
+    alert.status = AlertStatus.ACKNOWLEDGED.value
+    alert.acknowledged_at = utcnow()
+    alert.acknowledged_by = by[:200]
+    return True
+
+
+@handler("alert.escalate")
+def on_alert_escalate(ctx: WorkerContext, payload: dict[str, Any]) -> None:
+    """Nobody acknowledged the alert in time: tell the recipients of the next rank, and schedule
+    the rank after them. Escalation messages ignore quiet hours and daily caps."""
+    rank = int(payload["rank"])
+    to_send: list[str] = []
+    with tenant_session(ctx.sessions, payload["organisation_id"]) as db:
+        alert = db.scalar(select(Alert).where(Alert.id == payload["alert_id"]))
+        if alert is None or alert.status != AlertStatus.OPEN.value:
+            log.info("escalation.not_needed", alert_id=payload["alert_id"])
+            return
+        if alert.escalation_level >= rank:
+            return  # this rank was already told (job ran twice)
+        recipients = recipients_for(db, alert, rank=rank)
+        if not recipients:
+            log.warning("escalation.chain_exhausted", alert_id=alert.id, rank=rank)
+            return
+        for r in recipients:
+            n = Notification(
+                organisation_id=alert.organisation_id,
+                event_id=alert.last_event_id,
+                alert_id=alert.id,
+                recipient_id=r.id,
+                kind="escalation",
+                channel=r.channel,
+                status=NotificationStatus.QUEUED.value,
+            )
+            db.add(n)
+            db.flush()
+            to_send.append(n.id)
+        alert.escalation_level = rank
+        db.commit()
+        log.info("escalation.sent", alert_id=alert.id, rank=rank, recipients=len(to_send))
+    for notification_id in to_send:
+        ctx.queue.enqueue(
+            "notification.send",
+            {"organisation_id": payload["organisation_id"], "notification_id": notification_id},
+        )
+    schedule_escalation(ctx, payload["organisation_id"], payload["alert_id"], rank + 1)
 
 
 @handler("event.cleared")

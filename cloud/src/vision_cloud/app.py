@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from vision_cloud import errors
-from vision_cloud.api import auth, device, events, manage, recipients, storage_local
+from vision_cloud.api import alerts, auth, device, events, manage, recipients, storage_local
 from vision_cloud.api.deps import AppState, StateDep
 from vision_cloud.db import make_engine, make_session_factory
 from vision_cloud.jobs import JobQueue, queue_from_settings
@@ -70,6 +70,7 @@ def create_app(
     app.include_router(auth.router)
     app.include_router(manage.router)
     app.include_router(recipients.router)
+    app.include_router(alerts.router)
     app.include_router(events.router)
     app.include_router(device.router)
     if isinstance(state.storage, LocalStorage):

@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 
 from vision_cloud.api.deps import DbDep, Principal, PrincipalDep, StateDep, audit
 from vision_cloud.errors import AppError, not_found
-from vision_cloud.models import EventFeedback, EventRow, EventStatus, Role
+from vision_cloud.models import Alert, EventFeedback, EventRow, EventStatus, Role
 from vision_cloud.schemas import EventDetail, EventOut, EventPage, FeedbackIn, FeedbackOut
+from vision_cloud.services.dispatch import acknowledge
 from vision_shared.schemas import EventState, Severity
 
 router = APIRouter(prefix="/api/v1", tags=["events"])
@@ -197,5 +198,9 @@ def give_feedback(
     )
     db.add(fb)
     row.verified = body.is_true
+    if row.alert_id:  # answering for an event acknowledges its alert (stops escalation)
+        alert = db.get(Alert, row.alert_id)
+        if alert is not None:
+            acknowledge(alert, principal.email)
     db.commit()
     return fb
