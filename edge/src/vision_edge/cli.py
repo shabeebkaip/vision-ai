@@ -17,6 +17,8 @@ from pathlib import Path
 
 import cv2
 
+from vision_edge.agent import Agent, CameraStatusFile, DeviceState, EnrolmentError, enrol
+from vision_edge.config_watch import ConfigWatcher, RestartRequired
 from vision_edge.detection import build_detector
 from vision_edge.ingest import FileSource, open_source
 from vision_edge.logs import configure_logging
@@ -37,11 +39,22 @@ def _open_outbox(settings: EdgeSettings, directory: Path) -> Outbox:
     )
 
 
+def _cloud_credentials(settings: EdgeSettings) -> tuple[str, str] | None:
+    """Cloud URL and device token: from the environment, else from `vision-edge enrol`."""
+    if settings.cloud_url and settings.device_token:
+        return settings.cloud_url, settings.device_token.get_secret_value()
+    device = DeviceState.load(settings.state_dir)
+    if device is not None:
+        return device.cloud_url, device.device_token
+    return None
+
+
 def _uploader(settings: EdgeSettings, outbox: Outbox) -> Uploader | None:
     """The cloud uploader, or None when no cloud is configured (local-only / offline mode)."""
-    if not settings.cloud_url or not settings.device_token:
+    creds = _cloud_credentials(settings)
+    if creds is None:
         return None
-    client = CloudClient(settings.cloud_url, settings.device_token.get_secret_value())
+    client = CloudClient(*creds)
     return Uploader(outbox, client, batch_size=settings.upload_batch_size)
 
 
@@ -68,6 +81,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace, settings: EdgeSettings) -> int:
+    if args.config is None:  # the config the agent pulls from the cloud
+        args.config = str(settings.state_dir / "site.json")
+        if not Path(args.config).is_file():
+            sys.exit(f"no site config at {args.config}: run `vision-edge agent` first")
     site = load_site(args.config)
     cameras = [site.camera(args.camera)] if args.camera else [c for c in site.cameras if c.enabled]
     if len(cameras) != 1:
@@ -97,6 +114,13 @@ def cmd_run(args: argparse.Namespace, settings: EdgeSettings) -> int:
         clip_pre_s=settings.clip_pre_s,
         clip_post_s=settings.clip_post_s,
     )
+    status = CameraStatusFile(settings.state_dir, camera.id)
+    status.set_config_version(site.version)
+    pipeline.after_frame.append(lambda _p, frame: status.mark_frame(frame.ts))
+    if not args.no_watch:
+        pipeline.after_frame.append(
+            ConfigWatcher(Path(args.config), on_applied=status.set_config_version)
+        )
     source = open_source(
         source_str, camera.id, camera.fps, max_seconds=args.max_seconds, video=args.video
     )
@@ -106,6 +130,9 @@ def cmd_run(args: argparse.Namespace, settings: EdgeSettings) -> int:
         thread.start()
     try:
         stats = pipeline.run(source)
+    except RestartRequired as exc:
+        print(f"restart needed: {exc}")
+        return 3  # the supervisor (Docker restart policy) starts us again with the new config
     finally:
         if thread:
             thread.stop()
@@ -121,7 +148,7 @@ def cmd_upload(args: argparse.Namespace, settings: EdgeSettings) -> int:
     outbox = _open_outbox(settings, Path(args.outbox or settings.outbox_dir))
     uploader = _uploader(settings, outbox)
     if uploader is None:
-        sys.exit("upload needs VISION_CLOUD_URL and VISION_DEVICE_TOKEN")
+        sys.exit("upload needs `vision-edge enrol` or VISION_CLOUD_URL and VISION_DEVICE_TOKEN")
     if args.once:
         try:
             res = uploader.drain()
@@ -138,6 +165,42 @@ def cmd_upload(args: argparse.Namespace, settings: EdgeSettings) -> int:
     stop = threading.Event()
     try:
         uploader.run_forever(stop)
+    except KeyboardInterrupt:
+        stop.set()
+    return 0
+
+
+def cmd_enrol(args: argparse.Namespace, settings: EdgeSettings) -> int:
+    cloud_url = args.cloud_url or settings.cloud_url
+    if not cloud_url:
+        sys.exit("enrol needs --cloud-url or VISION_CLOUD_URL")
+    try:
+        device = enrol(
+            cloud_url, args.token, settings.state_dir, hardware_tier=settings.hardware_tier
+        )
+    except EnrolmentError as exc:
+        print(f"FAIL: {exc}")
+        return 1
+    print(f"OK: enrolled as device {device.device_id} for site {device.site_id}")
+    print(f"credentials saved to {DeviceState.path(settings.state_dir)}")
+    return 0
+
+
+def cmd_agent(args: argparse.Namespace, settings: EdgeSettings) -> int:
+    device = DeviceState.load(settings.state_dir)
+    if device is None:
+        sys.exit("this box is not enrolled: run `vision-edge enrol <token> --cloud-url ...`")
+    root = Path(settings.outbox_dir)
+    outboxes = [root, *sorted(p for p in root.glob("*") if p.is_dir())] if root.is_dir() else []
+    agent = Agent(settings.state_dir, device, outbox_dirs=outboxes)
+    if args.once:
+        agent.tick()
+        config = agent.current_config()
+        print(f"OK: heartbeat sent; config version {config.version if config else '-'}")
+        return 0
+    stop = threading.Event()
+    try:
+        agent.run_forever(stop, interval_s=args.interval or settings.heartbeat_interval_s)
     except KeyboardInterrupt:
         stop.set()
     return 0
@@ -258,7 +321,9 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("config")
 
     r = sub.add_parser("run", help="run the pipeline for one camera of a site config")
-    r.add_argument("config")
+    r.add_argument(
+        "config", nargs="?", help="site config (default: the one the agent pulled, state/site.json)"
+    )
     r.add_argument("--camera")
     r.add_argument(
         "--source", help="override the camera source (file, RTSP URL or detections JSONL)"
@@ -271,6 +336,15 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--max-seconds", type=float)
     r.add_argument("--outbox")
     r.add_argument("--telegram", action="store_true", help="also send alerts to Telegram")
+    r.add_argument("--no-watch", action="store_true", help="do not reload the config on change")
+
+    en = sub.add_parser("enrol", help="register this box with the cloud (EDG-13)")
+    en.add_argument("token", help="one-time enrolment token from the dashboard")
+    en.add_argument("--cloud-url")
+
+    ag = sub.add_parser("agent", help="heartbeat and site config from the cloud (EDG-13)")
+    ag.add_argument("--once", action="store_true", help="one heartbeat and config pull, then exit")
+    ag.add_argument("--interval", type=float, help="seconds between heartbeats (default 60)")
 
     u = sub.add_parser("upload", help="send an outbox to the cloud (EDG-12)")
     u.add_argument("--outbox")
@@ -321,6 +395,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_validate(args)
     if args.command == "run":
         return cmd_run(args, settings)
+    if args.command == "enrol":
+        return cmd_enrol(args, settings)
+    if args.command == "agent":
+        return cmd_agent(args, settings)
     if args.command == "upload":
         return cmd_upload(args, settings)
     if args.command == "detect-file":
