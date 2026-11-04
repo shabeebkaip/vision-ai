@@ -6,14 +6,15 @@ rules extend `Rule`, events extend `Event`. Device payloads live in `vision_shar
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from vision_cloud.models import Role
-from vision_shared.schemas import Event, Line, Rule, Zone
+from vision_shared.schemas import Event, Line, Rule, Severity, Zone
 
 
 class _In(BaseModel):
@@ -286,3 +287,108 @@ class EventDetail(EventOut):
 class EventPage(BaseModel):
     items: list[EventOut]
     next_cursor: str | None = Field(description="pass as `cursor` to get the next page")
+
+
+# --------------------------------------------------------------------------- recipients (CLD-08)
+
+Channel = Literal["whatsapp", "telegram", "email"]
+_ADDRESS = {
+    "whatsapp": (re.compile(r"^\+[1-9]\d{7,14}$"), "an international number like +9665XXXXXXXX"),
+    "telegram": (re.compile(r"^-?\d{4,20}$"), "a numeric Telegram chat id"),
+    "email": (re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$"), "an email address"),
+}
+_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _hhmm(v: str | None) -> str | None:
+    if v is not None and not _HHMM.match(v):
+        raise ValueError("use HH:MM, 24-hour")
+    return v
+
+
+HHMM = Annotated[str | None, AfterValidator(_hhmm)]
+
+
+def check_address(channel: str, address: str) -> None:
+    pattern, hint = _ADDRESS[channel]
+    if not pattern.match(address):
+        raise ValueError(f"{channel} address must be {hint}")
+
+
+def check_quiet_hours(start: str | None, end: str | None) -> None:
+    if (start is None) != (end is None):
+        raise ValueError("set both quiet_hours_start and quiet_hours_end, or neither")
+    if start is not None and start == end:
+        raise ValueError("quiet hours must not start and end at the same time")
+
+
+class RecipientIn(_In):
+    site_id: str | None = Field(default=None, description="None = every site (managers only)")
+    name: str = Field(min_length=1, max_length=200)
+    name_ar: str = Field(default="", max_length=200)
+    channel: Channel
+    address: str = Field(min_length=3, max_length=320)
+    language: Literal["en", "ar"] = "en"
+    min_severity: Severity = Severity.WARNING
+    quiet_hours_start: HHMM = None
+    quiet_hours_end: HHMM = None
+    daily_cap: int = Field(default=50, ge=1, le=1000)
+    escalation_rank: int | None = Field(
+        default=None, ge=1, le=20, description="order in the escalation chain; None = not in it"
+    )
+    rule_ids: list[str] = Field(
+        default_factory=list, max_length=200, description="empty = every rule of the site(s)"
+    )
+    enabled: bool = True
+
+    @model_validator(mode="after")
+    def _consistent(self) -> RecipientIn:
+        check_address(self.channel, self.address)
+        check_quiet_hours(self.quiet_hours_start, self.quiet_hours_end)
+        return self
+
+
+class RecipientUpdate(_In):
+    """PATCH: only the fields sent change. `site_id` cannot change (create a new recipient)."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    name_ar: str | None = Field(default=None, max_length=200)
+    channel: Channel | None = None
+    address: str | None = Field(default=None, min_length=3, max_length=320)
+    language: Literal["en", "ar"] | None = None
+    min_severity: Severity | None = None
+    quiet_hours_start: HHMM = None
+    quiet_hours_end: HHMM = None
+    daily_cap: int | None = Field(default=None, ge=1, le=1000)
+    escalation_rank: int | None = Field(default=None, ge=1, le=20)
+    rule_ids: list[str] | None = Field(default=None, max_length=200)
+    enabled: bool | None = None
+
+
+class RecipientOut(_Out):
+    id: str
+    site_id: str | None
+    name: str
+    name_ar: str
+    channel: str
+    address: str
+    language: str
+    min_severity: str
+    quiet_hours_start: str | None
+    quiet_hours_end: str | None
+    daily_cap: int
+    escalation_rank: int | None
+    rule_ids: list[str]
+    enabled: bool
+    opted_in_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RecipientSummary(_Out):
+    """What the dashboard's rule builder needs; no address (personal data)."""
+
+    id: str
+    name: str
+    name_ar: str
+    channel: str

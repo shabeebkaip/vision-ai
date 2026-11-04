@@ -76,6 +76,14 @@ def pg_database() -> Iterator[PgDatabase]:
                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {APP_ROLE}"
             )
         )
+        # Like deploy/postgres-init: tables created later by migrations (including tests that
+        # migrate down and up again) are granted to the API role too.
+        conn.execute(
+            text(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+                f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {APP_ROLE}"
+            )
+        )
     app_url = make_url(PG_URL).set(username=APP_ROLE, password=role_password)
     yield PgDatabase(admin_url=PG_URL, app_url=app_url.render_as_string(hide_password=False))
     admin.dispose()

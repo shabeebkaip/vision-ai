@@ -278,6 +278,9 @@ class EventRow(TenantMixin, Base):
     attributes: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
     snapshot_key: Mapped[str | None] = mapped_column(String(512))
     clip_key: Mapped[str | None] = mapped_column(String(512))
+    alert_id: Mapped[str | None] = mapped_column(
+        ForeignKey("alerts.id", ondelete="SET NULL"), index=True
+    )
     needs_verification: Mapped[bool] = mapped_column(Boolean, default=False)
     vlm_verdict: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
     status: Mapped[str] = mapped_column(String(16), default=EventStatus.NEW.value)
@@ -300,34 +303,102 @@ class EventFeedback(TenantMixin, Base):
 
 
 class Recipient(TenantMixin, Base):
-    """Who gets alerts (dispatcher: CLD-08). Table only in this change."""
+    """Who gets alerts (CLD-08). `site_id` None = every site of the organisation. Without rows in
+    `recipient_rules` the recipient gets every rule of those sites (at or above `min_severity`)."""
 
     __tablename__ = "recipients"
 
     id: Mapped[str] = _id_col()
     site_id: Mapped[str | None] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(200), default="")
+    name_ar: Mapped[str] = mapped_column(String(200), default="")
     channel: Mapped[str] = mapped_column(String(16))  # whatsapp | telegram | email
     address: Mapped[str] = mapped_column(String(320))
     language: Mapped[str] = mapped_column(String(8), default="en")
     min_severity: Mapped[str] = mapped_column(String(16), default="warning")
+    quiet_hours_start: Mapped[str | None] = mapped_column(String(5))  # "HH:MM", site timezone
+    quiet_hours_end: Mapped[str | None] = mapped_column(String(5))
+    daily_cap: Mapped[int] = mapped_column(Integer, default=50)
+    escalation_rank: Mapped[int | None] = mapped_column(Integer)  # 1 = first to escalate to
     opted_in_at: Mapped[datetime | None]
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = _created()
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+    rules: Mapped[list[RecipientRule]] = relationship(cascade="all, delete-orphan", lazy="selectin")
+
+
+class RecipientRule(TenantMixin, Base):
+    """Limits a recipient to these rules (CLD-08)."""
+
+    __tablename__ = "recipient_rules"
+
+    recipient_id: Mapped[str] = mapped_column(
+        ForeignKey("recipients.id", ondelete="CASCADE"), primary_key=True
+    )
+    rule_id: Mapped[str] = mapped_column(
+        ForeignKey("rules.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+
+
+class AlertStatus(str, Enum):
+    OPEN = "open"  # still collecting events of the same camera and rule
+    ACKNOWLEDGED = "acknowledged"
+    CLOSED = "closed"
+
+
+class Alert(TenantMixin, Base):
+    """What a person is told about (CLD-08): events of one camera and rule close together in time,
+    grouped so a burst of 30 events is one message with a count."""
+
+    __tablename__ = "alerts"
+    __table_args__ = (Index("ix_alerts_group", "camera_id", "rule_id", "last_event_at"),)
+
+    id: Mapped[str] = _id_col()
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
+    camera_id: Mapped[str] = mapped_column(ForeignKey("cameras.id", ondelete="CASCADE"))
+    rule_id: Mapped[str] = mapped_column(String(64))
+    rule_type: Mapped[str] = mapped_column(String(32))
+    severity: Mapped[str] = mapped_column(String(16))
+    first_event_id: Mapped[str] = mapped_column(String(64))
+    last_event_id: Mapped[str] = mapped_column(String(64))
+    event_count: Mapped[int] = mapped_column(Integer, default=1)
+    message: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default=AlertStatus.OPEN.value)
+    opened_at: Mapped[datetime]
+    last_event_at: Mapped[datetime]
+    acknowledged_at: Mapped[datetime | None]
+    acknowledged_by: Mapped[str | None] = mapped_column(String(200))
+    escalation_level: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = _created()
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+class NotificationStatus(str, Enum):
+    QUEUED = "queued"
+    SENT = "sent"  # accepted by the provider
+    DELIVERED = "delivered"  # provider confirmed delivery (WhatsApp/Telegram status callbacks)
+    FAILED = "failed"  # gave up after retries
+    SUPPRESSED = "suppressed"  # not sent on purpose: quiet hours, daily cap (see `reason`)
 
 
 class Notification(TenantMixin, Base):
-    """Every delivery attempt (CLD-08). Table only in this change."""
+    """The delivery log (CLD-08): one row per alert, recipient and message kind."""
 
     __tablename__ = "notifications"
 
     id: Mapped[str] = _id_col()
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    alert_id: Mapped[str | None] = mapped_column(
+        ForeignKey("alerts.id", ondelete="CASCADE"), index=True
+    )
     recipient_id: Mapped[str | None] = mapped_column(
         ForeignKey("recipients.id", ondelete="SET NULL")
     )
+    kind: Mapped[str] = mapped_column(String(16), default="alert")  # alert | escalation | update
     channel: Mapped[str] = mapped_column(String(16))
-    status: Mapped[str] = mapped_column(String(16), default="queued")
+    status: Mapped[str] = mapped_column(String(16), default=NotificationStatus.QUEUED.value)
+    reason: Mapped[str | None] = mapped_column(String(64))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     provider_message_id: Mapped[str | None] = mapped_column(String(200))
     last_error: Mapped[str | None] = mapped_column(Text)
@@ -396,7 +467,8 @@ class AuditLog(TenantMixin, Base):
 
 
 def tenant_tables() -> list[str]:
-    """Every table with an `organisation_id` column; each must have an RLS policy (migration 0002)."""
+    """Every table with an `organisation_id` column; each must have an RLS policy (migrations 0002
+    and later)."""
     return sorted(
         table.name for table in Base.metadata.sorted_tables if "organisation_id" in table.c
     )
