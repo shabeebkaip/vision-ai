@@ -88,8 +88,8 @@ Payloads are in `shared/src/vision_shared/api.py`; the full schema is at `/docs`
 ## Not done yet
 
 Password reset and 2FA (CLD-03), rate limits (CLD-05, CLD-19), storage lifecycle rules and delete
-jobs (CLD-06), zones/aggregates query endpoints (CLD-07), real alert channels (CLD-09 WhatsApp, CLD-10 Telegram; until then alerts are logged by
-the dry-run channel), plan limits (CLD-18), staging deployment (CLD-20).
+jobs (CLD-06), zones/aggregates query endpoints (CLD-07), the WhatsApp channel (CLD-09), plan
+limits (CLD-18), staging deployment (CLD-20).
 
 ## Alerts (CLD-08)
 
@@ -107,3 +107,12 @@ then, recipients with escalation rank 2 get an "escalated" message, then rank 3 
 until the chain ends. Acknowledging stops it: `POST /api/v1/alerts/{id}/acknowledge` ("I'm on it"),
 or feedback on one of its events. `GET /api/v1/alerts` and `GET /api/v1/alerts/{id}` show alerts
 with their delivery log (recipient names, never addresses).
+
+## Telegram (CLD-10)
+
+Alerts to Telegram chats: the snapshot (waiting up to 20 s for the edge to upload it), the text in
+the recipient's language, and Correct / False alarm / I'm on it buttons. Taps arrive at
+`POST /integrations/telegram/webhook` (checked with `X-Telegram-Bot-Api-Secret-Token`, and only
+from the chat the alert went to), store feedback and acknowledge the alert. People link their chat
+with a one-time code from `POST /api/v1/recipients/{id}/telegram-link`. Setup:
+`docs/runbooks/telegram-alerts.md`; `vision-cloud telegram check` and `set-webhook`.

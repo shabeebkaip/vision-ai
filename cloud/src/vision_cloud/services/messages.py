@@ -33,7 +33,40 @@ TEXT: dict[str, dict[str, str]] = {
     "time": {"en": "Time", "ar": "الوقت"},
     "events": {"en": "Events in this alert", "ar": "عدد الأحداث في هذا التنبيه"},
     "escalated": {"en": "Escalated: nobody has responded yet", "ar": "تصعيد: لم يرد أحد بعد"},
+    # buttons (Telegram inline keyboard, WhatsApp quick replies)
+    "correct": {"en": "✅ Correct", "ar": "✅ صحيح"},
+    "false_alarm": {"en": "❌ False alarm", "ar": "❌ إنذار خاطئ"},
+    "on_it": {"en": "👀 I'm on it", "ar": "👀 أتولى الأمر"},
+    # answers after a tap
+    "thanks_correct": {"en": "Thanks: marked as correct", "ar": "شكراً: تم تأكيد التنبيه"},
+    "thanks_false": {"en": "Thanks: marked as a false alarm", "ar": "شكراً: تم تسجيله كإنذار خاطئ"},
+    "thanks_on_it": {"en": "Thanks: you are on it", "ar": "شكراً: أنت تتولى الأمر"},
+    "answered_correct": {"en": "✅ Marked correct", "ar": "✅ تم التأكيد"},
+    "answered_false": {"en": "❌ Marked false alarm", "ar": "❌ إنذار خاطئ"},
+    "answered_on_it": {"en": "👀 On it", "ar": "👀 قيد المتابعة"},
+    "not_yours": {
+        "en": "This alert was sent to another chat",
+        "ar": "هذا التنبيه أُرسل إلى محادثة أخرى",
+    },
+    # linking a Telegram chat to a recipient
+    "linked": {
+        "en": "Linked. This chat will receive Code-Ox Vision alerts for {name}.",
+        "ar": "تم الربط. ستصل تنبيهات Code-Ox Vision إلى هذه المحادثة باسم {name}.",
+    },
+    "link_invalid": {
+        "en": "This link code is invalid or has expired. Ask for a new one in the dashboard.",
+        "ar": "رمز الربط غير صالح أو منتهي الصلاحية. اطلب رمزاً جديداً من لوحة التحكم.",
+    },
+    "hello": {
+        "en": "This is the Code-Ox Vision alert bot. Open the link from the dashboard to connect.",
+        "ar": "هذا بوت تنبيهات Code-Ox Vision. افتح رابط الربط من لوحة التحكم.",
+    },
 }
+
+
+def t(key: str, language: str, **values: str) -> str:
+    lang = "ar" if language == "ar" else "en"
+    return TEXT[key][lang].format(**values)
 
 
 @dataclass(frozen=True)
@@ -43,6 +76,10 @@ class AlertMessage:
     body: str
     severity: str
     snapshot_url: str | None = None
+    snapshot: bytes | None = None
+    """JPEG bytes, for channels that upload the photo (Telegram)."""
+    ref: str | None = None
+    """Delivery-log row id: buttons carry it back so a tap finds its alert and recipient."""
 
     @property
     def text(self) -> str:
@@ -67,6 +104,8 @@ def render(
     event_count: int = 1,
     escalated: bool = False,
     snapshot_url: str | None = None,
+    snapshot: bytes | None = None,
+    ref: str | None = None,
 ) -> AlertMessage:
     lang = "ar" if language == "ar" else "en"
     sev = SEVERITY.get(severity, SEVERITY["warning"])
@@ -85,4 +124,4 @@ def render(
     ]
     if event_count > 1:
         lines.append(f"{TEXT['events'][lang]}: {event_count}")
-    return AlertMessage(lang, title, "\n".join(lines), severity, snapshot_url)
+    return AlertMessage(lang, title, "\n".join(lines), severity, snapshot_url, snapshot, ref)

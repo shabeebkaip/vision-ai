@@ -56,6 +56,23 @@ class CloudSettings(BaseSettings):
         description="log alerts instead of sending them; set false once channels are configured",
     )
 
+    alert_media_wait_s: float = Field(
+        default=20,
+        ge=0,
+        description="wait this long for the event's snapshot before sending an alert without it",
+    )
+
+    # --- Telegram channel (CLD-10)
+    telegram_bot_token: SecretStr | None = Field(default=None, description="from @BotFather")
+    telegram_bot_username: str | None = Field(
+        default=None, description="the bot's @name without @, for t.me link codes"
+    )
+    telegram_webhook_secret: SecretStr | None = Field(
+        default=None, description="Telegram sends it in X-Telegram-Bot-Api-Secret-Token"
+    )
+    telegram_api_base: str = "https://api.telegram.org"
+    telegram_link_ttl_s: int = Field(default=24 * 3600, gt=0)
+
     # --- object storage (CLD-06)
     storage_backend: Literal["s3", "local"] = "s3"
     storage_bucket: str = "vision-media"

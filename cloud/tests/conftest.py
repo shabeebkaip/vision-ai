@@ -129,6 +129,7 @@ def settings(db_url: str, tmp_path: Path) -> CloudSettings:
         storage_local_dir=tmp_path / "storage",
         public_base_url="http://testserver",
         log_json=False,
+        alert_media_wait_s=0,  # tests post events without snapshots; test_telegram covers waiting
     )
 
 

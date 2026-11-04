@@ -13,6 +13,7 @@ import structlog
 
 from vision_cloud.models import Recipient
 from vision_cloud.services.messages import AlertMessage
+from vision_cloud.settings import CloudSettings
 
 log = structlog.get_logger(__name__)
 
@@ -52,15 +53,21 @@ class DryRunChannel:
 
 
 CHANNELS: dict[str, Channel] = {}
-"""Real providers by recipient channel ("whatsapp", "telegram", "email"); filled by CLD-09/10."""
+"""Providers by recipient channel, built from settings on first use (tests may set entries)."""
 
 _dry_run = DryRunChannel()
 
 
-def channel_for(recipient_channel: str, *, dry_run: bool) -> Channel:
-    if dry_run:
+def channel_for(recipient_channel: str, settings: CloudSettings) -> Channel:
+    if settings.alert_dry_run:
         return _dry_run
     channel = CHANNELS.get(recipient_channel)
+    if channel is None and recipient_channel == "telegram":
+        from vision_cloud.services.telegram import TelegramChannel, client_from_settings
+
+        client = client_from_settings(settings)
+        if client is not None:
+            channel = TelegramChannel(client)
     if channel is None:
         raise ChannelError(f"no provider configured for {recipient_channel}", retry=False)
     return channel

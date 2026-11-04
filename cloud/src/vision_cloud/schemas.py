@@ -294,7 +294,7 @@ class EventPage(BaseModel):
 Channel = Literal["whatsapp", "telegram", "email"]
 _ADDRESS = {
     "whatsapp": (re.compile(r"^\+[1-9]\d{7,14}$"), "an international number like +9665XXXXXXXX"),
-    "telegram": (re.compile(r"^-?\d{4,20}$"), "a numeric Telegram chat id"),
+    "telegram": (re.compile(r"^(-?\d{4,20})?$"), "a numeric Telegram chat id, or empty to link"),
     "email": (re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$"), "an email address"),
 }
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -327,7 +327,11 @@ class RecipientIn(_In):
     name: str = Field(min_length=1, max_length=200)
     name_ar: str = Field(default="", max_length=200)
     channel: Channel
-    address: str = Field(min_length=3, max_length=320)
+    address: str = Field(
+        default="",
+        max_length=320,
+        description="Telegram may be left empty and linked with POST .../telegram-link",
+    )
     language: Literal["en", "ar"] = "en"
     min_severity: Severity = Severity.WARNING
     quiet_hours_start: HHMM = None
@@ -354,7 +358,7 @@ class RecipientUpdate(_In):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     name_ar: str | None = Field(default=None, max_length=200)
     channel: Channel | None = None
-    address: str | None = Field(default=None, min_length=3, max_length=320)
+    address: str | None = Field(default=None, max_length=320)
     language: Literal["en", "ar"] | None = None
     min_severity: Severity | None = None
     quiet_hours_start: HHMM = None
@@ -434,3 +438,9 @@ class DeliveryOut(BaseModel):
 
 class AlertDetail(AlertOut):
     deliveries: list[DeliveryOut]
+
+
+class TelegramLinkOut(BaseModel):
+    code: str = Field(description="one-time; the person sends `/start <code>` to the bot")
+    url: str | None = Field(description="t.me link that sends the code in one tap")
+    expires_at: datetime
