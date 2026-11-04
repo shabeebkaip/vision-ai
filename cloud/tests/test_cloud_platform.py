@@ -132,9 +132,13 @@ def test_sqlite_migrations_match_models(tmp_path: Path) -> None:
 def test_rls_covers_every_tenant_table() -> None:
     import importlib
 
-    rls = importlib.import_module("vision_cloud.migrations.versions.0002_row_level_security")
-    assert sorted(rls.TENANT_TABLES) == tenant_tables()
-    assert "events" in rls.TENANT_TABLES and "sites" in rls.TENANT_TABLES
+    protected: set[str] = set()
+    for name in ("0002_row_level_security", "0003_alerts_and_recipients"):
+        protected |= set(
+            importlib.import_module(f"vision_cloud.migrations.versions.{name}").TENANT_TABLES
+        )
+    assert sorted(protected) == tenant_tables()
+    assert {"events", "sites", "alerts", "recipient_rules"} <= protected
 
 
 @pytest.mark.postgres

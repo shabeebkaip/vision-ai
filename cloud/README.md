@@ -67,7 +67,10 @@ migrations, and connects the API as a fresh role without BYPASSRLS. CI runs it i
 
 Dashboard (`Authorization: Bearer <access token>`): `/api/v1/auth/*`, `/api/v1/sites`,
 `/api/v1/cameras`, `/api/v1/rules`, `/api/v1/devices`, `/api/v1/events`, `/api/v1/members`,
-`/api/v1/invitations`, `/api/v1/admin/organisations` (Code-Ox admin).
+`/api/v1/invitations`, `/api/v1/recipients` (who gets alerts: channel, sites, rules, minimum
+severity, quiet hours, daily cap, escalation rank; site manager or higher),
+`/api/v1/sites/{id}/recipients` (names and channels only, for the rule builder),
+`/api/v1/admin/organisations` (Code-Ox admin).
 
 Edge box (`Authorization: Bearer <device token>` from enrolment), all under `/device/v1`:
 
@@ -84,5 +87,6 @@ Payloads are in `shared/src/vision_shared/api.py`; the full schema is at `/docs`
 ## Not done yet
 
 Password reset and 2FA (CLD-03), rate limits (CLD-05, CLD-19), storage lifecycle rules and delete
-jobs (CLD-06), recipients/zones/aggregates query endpoints (CLD-07), the Redis worker (CLD-17),
-alert dispatch (CLD-08 onwards), plan limits (CLD-18), staging deployment (CLD-20).
+jobs (CLD-06), zones/aggregates query endpoints (CLD-07), alert dispatch itself (CLD-08b:
+grouping, recipient selection, delivery log; CLD-08c: acknowledgement and escalation), alert
+channels (CLD-09 WhatsApp, CLD-10 Telegram), plan limits (CLD-18), staging deployment (CLD-20).
