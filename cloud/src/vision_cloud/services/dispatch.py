@@ -183,7 +183,9 @@ def plan_notifications(
     rows = []
     for r in recipients_for(db, alert):
         status, reason = NotificationStatus.QUEUED, None
-        if not critical and in_quiet_hours(
+        if not r.address:  # a Telegram recipient who has not opened the link yet
+            status, reason = NotificationStatus.SUPPRESSED, "not_linked"
+        elif not critical and in_quiet_hours(
             r.quiet_hours_start, r.quiet_hours_end, event.triggered_at, timezone
         ):
             status, reason = NotificationStatus.SUPPRESSED, "quiet_hours"
@@ -291,6 +293,7 @@ def on_alert_escalate(ctx: WorkerContext, payload: dict[str, Any]) -> None:
             log.warning("escalation.chain_exhausted", alert_id=alert.id, rank=rank)
             return
         for r in recipients:
+            linked = bool(r.address)
             n = Notification(
                 organisation_id=alert.organisation_id,
                 event_id=alert.last_event_id,
@@ -298,11 +301,15 @@ def on_alert_escalate(ctx: WorkerContext, payload: dict[str, Any]) -> None:
                 recipient_id=r.id,
                 kind="escalation",
                 channel=r.channel,
-                status=NotificationStatus.QUEUED.value,
+                status=(
+                    NotificationStatus.QUEUED if linked else NotificationStatus.SUPPRESSED
+                ).value,
+                reason=None if linked else "not_linked",
             )
             db.add(n)
             db.flush()
-            to_send.append(n.id)
+            if linked:
+                to_send.append(n.id)
         alert.escalation_level = rank
         db.commit()
         log.info("escalation.sent", alert_id=alert.id, rank=rank, recipients=len(to_send))
@@ -317,7 +324,7 @@ def on_alert_escalate(ctx: WorkerContext, payload: dict[str, Any]) -> None:
 @handler("event.cleared")
 @handler("event.media_ready")
 def on_event_update(ctx: WorkerContext, payload: dict[str, Any]) -> None:
-    """No message for these yet: Telegram (CLD-10) edits the sent alert to add the snapshot."""
+    """No message for these: `notification.send` waits briefly for the snapshot instead."""
     log.info("dispatch.update_ignored")
 
 
@@ -340,9 +347,24 @@ def on_notification_send(ctx: WorkerContext, payload: dict[str, Any]) -> None:
         site = db.get(Site, alert.site_id)
         camera = db.get(Camera, alert.camera_id)
         rule = db.get(RuleRow, alert.rule_id)
+        if event.snapshot_key is None and site is not None and not site.events_only:
+            # The edge uploads the snapshot right after the event: wait a little for it so the
+            # alert carries the picture, then send without it.
+            waited = (utcnow() - event.received_at).total_seconds()
+            if waited < ctx.settings.alert_media_wait_s:
+                retry_in = min(5.0, ctx.settings.alert_media_wait_s - waited)
+                ctx.queue.enqueue_in(
+                    max(retry_in, 1.0), "notification.send", payload, job_id=f"send-{n.id}"
+                )
+                return
         snapshot_url = None
+        snapshot = None
         if event.snapshot_key:
             snapshot_url = ctx.storage.presign_get(event.snapshot_key, 24 * 3600).url
+            try:
+                snapshot = ctx.storage.read_bytes(event.snapshot_key)
+            except Exception as exc:  # send the alert without the picture rather than not at all
+                log.warning("dispatch.snapshot_unreadable", error=str(exc)[:200])
         message = render(
             language=recipient.language,
             rule_type=alert.rule_type,
@@ -356,10 +378,12 @@ def on_notification_send(ctx: WorkerContext, payload: dict[str, Any]) -> None:
             event_count=alert.event_count,
             escalated=n.kind == "escalation",
             snapshot_url=snapshot_url,
+            snapshot=snapshot,
+            ref=n.id,
         )
         n.attempts += 1
         try:
-            channel = channel_for(recipient.channel, dry_run=ctx.settings.alert_dry_run)
+            channel = channel_for(recipient.channel, ctx.settings)
             n.provider_message_id = channel.send(recipient, message)
         except ChannelError as exc:
             n.last_error = str(exc)[:2000]

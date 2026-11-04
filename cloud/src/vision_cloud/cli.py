@@ -30,6 +30,7 @@ from vision_cloud.security import (
     generate_field_key,
     hash_password,
 )
+from vision_cloud.services.telegram import TelegramClient
 from vision_cloud.settings import CloudSettings
 
 DEFAULT_DEMO_SITE = Path("examples/synthetic-restaurant/site.yaml")
@@ -166,6 +167,51 @@ def cmd_jobs_retry(args: argparse.Namespace) -> int:
     return 0 if args.all or n == len(args.ids) else 1
 
 
+def _telegram() -> tuple[CloudSettings, TelegramClient]:
+    from vision_cloud.services.telegram import client_from_settings
+
+    settings = CloudSettings()
+    client = client_from_settings(settings)
+    if client is None:
+        raise SystemExit("set VISION_CLOUD_TELEGRAM_BOT_TOKEN (from @BotFather)")
+    return settings, client
+
+
+def cmd_telegram_check(_args: argparse.Namespace) -> int:
+    from vision_cloud.services.channels import ChannelError
+
+    settings, client = _telegram()
+    try:
+        me = client.get_me()
+    except ChannelError as exc:
+        print(f"FAIL: {exc}")
+        return 1
+    print(f"OK: bot @{me.get('username')} ({me.get('first_name')})")
+    if settings.telegram_bot_username and settings.telegram_bot_username != me.get("username"):
+        print(f"WARN: VISION_CLOUD_TELEGRAM_BOT_USERNAME is {settings.telegram_bot_username}")
+    if settings.alert_dry_run:
+        print("NOTE: VISION_CLOUD_ALERT_DRY_RUN is true: alerts are logged, not sent")
+    return 0
+
+
+def cmd_telegram_set_webhook(args: argparse.Namespace) -> int:
+    from vision_cloud.services.channels import ChannelError
+
+    settings, client = _telegram()
+    if settings.telegram_webhook_secret is None:
+        raise SystemExit("set VISION_CLOUD_TELEGRAM_WEBHOOK_SECRET first (any long random string)")
+    url = args.public_url.rstrip("/") + "/integrations/telegram/webhook"
+    if not url.startswith("https://"):
+        raise SystemExit("Telegram only calls https:// webhooks")
+    try:
+        client.set_webhook(url, settings.telegram_webhook_secret.get_secret_value())
+    except ChannelError as exc:
+        print(f"FAIL: {exc}")
+        return 1
+    print(f"OK: Telegram will call {url}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vision-cloud", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -191,6 +237,15 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("gen-keys", help="print fresh secret keys for .env")
     p.set_defaults(func=cmd_gen_keys)
+
+    tg = sub.add_parser("telegram", help="Telegram alert bot (CLD-10)").add_subparsers(
+        dest="telegram_cmd", required=True
+    )
+    p = tg.add_parser("check", help="check the bot token")
+    p.set_defaults(func=cmd_telegram_check)
+    p = tg.add_parser("set-webhook", help="tell Telegram where to send button taps")
+    p.add_argument("public_url", help="the API's public https base URL")
+    p.set_defaults(func=cmd_telegram_set_webhook)
 
     p = sub.add_parser("worker", help="run background jobs (needs VISION_CLOUD_REDIS_URL)")
     p.add_argument("--burst", action="store_true", help="run what is queued, then exit")

@@ -59,6 +59,8 @@ class ObjectStorage(Protocol):
 
     def put_bytes(self, key: str, data: bytes, content_type: str) -> None: ...
 
+    def read_bytes(self, key: str) -> bytes: ...
+
     def delete(self, key: str) -> None: ...
 
 
@@ -133,6 +135,10 @@ class S3Storage:
         self._s3.put_object(
             Bucket=self.bucket, Key=key, Body=data, ContentType=content_type, **extra
         )
+
+    def read_bytes(self, key: str) -> bytes:
+        body = self._s3.get_object(Bucket=self.bucket, Key=key)["Body"]
+        return bytes(body.read())
 
     def delete(self, key: str) -> None:
         self._s3.delete_object(Bucket=self.bucket, Key=key)

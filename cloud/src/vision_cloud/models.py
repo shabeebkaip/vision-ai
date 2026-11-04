@@ -320,6 +320,9 @@ class Recipient(TenantMixin, Base):
     quiet_hours_end: Mapped[str | None] = mapped_column(String(5))
     daily_cap: Mapped[int] = mapped_column(Integer, default=50)
     escalation_rank: Mapped[int | None] = mapped_column(Integer)  # 1 = first to escalate to
+    # Telegram linking (CLD-10): the hash of a one-time code the person sends to the bot.
+    telegram_link_code_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    telegram_link_expires_at: Mapped[datetime | None]
     opted_in_at: Mapped[datetime | None]
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = _created()
