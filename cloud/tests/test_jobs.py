@@ -10,8 +10,10 @@ Done-when from the plan: "A failing job retries 3 times then lands in dead-lette
 from __future__ import annotations
 
 import os
+import secrets
 import time
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -19,6 +21,7 @@ from fastapi.testclient import TestClient
 
 from vision_cloud.app import create_app
 from vision_cloud.jobs import RqQueue, queue_from_settings
+from vision_cloud.security import generate_field_key
 from vision_cloud.settings import CloudSettings
 from vision_cloud.worker import (
     WorkerContext,
@@ -60,12 +63,26 @@ def _flaky(ctx: WorkerContext, payload: dict[str, Any]) -> None:
 
 
 @pytest.fixture
-def queue() -> Iterator[RqQueue]:
+def queue(tmp_path: Path) -> Iterator[RqQueue]:
     q = RqQueue(REDIS_URL, max_retries=3, retry_intervals_s=[0])
     q.redis.flushdb()
     RAN.clear()
     ATTEMPTS.clear()
-    set_context(None)
+    # An explicit context: the worker must not depend on settings from the environment or a
+    # developer's .env (CI has neither).
+    set_context(
+        build_context(
+            CloudSettings(
+                environment="test",
+                database_url=f"sqlite:///{tmp_path / 'jobs.db'}",
+                jwt_secret=secrets.token_urlsafe(48),
+                field_encryption_key=generate_field_key(),
+                storage_backend="local",
+                storage_local_dir=tmp_path / "storage",
+                redis_url=REDIS_URL,
+            )
+        )
+    )
     yield q
     q.redis.flushdb()
     set_context(None)
