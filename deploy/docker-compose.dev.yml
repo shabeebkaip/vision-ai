@@ -1,20 +1,26 @@
-# The whole system on one laptop (REP-05): database, cache, S3 storage, cloud API, web dashboard,
-# four fake RTSP cameras and the edge pipeline on each. From the repository root:
-#   cp .env.example .env            # then fill the two cloud keys: uv run vision-cloud gen-keys
-#   uv run vision-eval synth --out test-videos/synthetic --video     # clips for the fake cameras
+# The whole system on one laptop (REP-05). The easy way, from the repository root:
+#   ./scripts/dev.sh setup && ./scripts/dev.sh up          # see docs/runbooks/local-setup.md
+#
+# By hand:
 #   docker compose -f deploy/docker-compose.dev.yml --env-file .env up --build
+#     database, cache, S3 storage, cloud API, worker, dashboard, four fake RTSP cameras
+#   ... --profile edge up            + an edge box enrolled with the cloud (scripts/dev.sh edge)
+#   ... --profile edge-standalone up + one edge pipeline per fake camera, local config only
 # API on http://localhost:8000/docs, dashboard on http://localhost:5173. See deploy/README.md.
 # Development only: the passwords below are for throwaway local containers.
 
 name: vision-dev
 
+x-edge-build: &edge-build
+  context: ..
+  dockerfile: deploy/edge/Dockerfile
+  args:
+    EDGE_EXTRAS: ${EDGE_EXTRAS:-rfdetr}
+
 x-edge: &edge
-  build:
-    context: ..
-    dockerfile: deploy/edge/Dockerfile
-    args:
-      EDGE_EXTRAS: ${EDGE_EXTRAS:-rfdetr}
+  build: *edge-build
   image: codeox/vision-edge:dev
+  profiles: ["edge-standalone"]
   restart: unless-stopped
   depends_on:
     mediamtx: {condition: service_started}
@@ -118,6 +124,7 @@ services:
       VISION_CLOUD_STORAGE_BACKEND: s3
       VISION_CLOUD_STORAGE_ENDPOINT_URL: http://s3:8333                 # API -> storage inside compose
       VISION_CLOUD_STORAGE_PUBLIC_ENDPOINT_URL: http://localhost:9000   # pre-signed URLs, from the host
+      VISION_CLOUD_STORAGE_DEVICE_ENDPOINT_URL: http://s3:8333          # upload URLs for edge boxes
       VISION_CLOUD_STORAGE_BUCKET: vision-media
       VISION_CLOUD_STORAGE_ACCESS_KEY: ${VISION_CLOUD_STORAGE_ACCESS_KEY:-vision-dev}
       VISION_CLOUD_STORAGE_SECRET_KEY: ${VISION_CLOUD_STORAGE_SECRET_KEY:-vision-dev-secret}
@@ -161,7 +168,43 @@ services:
       - ./dev/mediamtx.yml:/mediamtx.yml:ro
       - ${CLIPS_DIR:-../test-videos/synthetic}:/clips:ro
 
-  # The edge CLI runs one camera per process for now, so one container per fake camera.
+  # An edge box connected to this cloud (profile "edge"): the agent enrols and pulls the site
+  # config; the box runs the site's camera from that config and uploads events. Enrol it once with
+  # `./scripts/dev.sh edge` (or `docker compose ... run --rm edge-agent enrol <token>
+  # --cloud-url http://api:8000`).
+  edge-agent:
+    build: *edge-build
+    image: codeox/vision-edge:dev
+    profiles: ["edge"]
+    restart: unless-stopped
+    depends_on:
+      api: {condition: service_healthy}
+    environment:
+      VISION_STATE_DIR: /var/lib/vision/state
+      VISION_LOG_JSON: "false"
+    command: ["agent"]
+    volumes:
+      - edgebox:/var/lib/vision
+
+  edge-box:
+    build: *edge-build
+    image: codeox/vision-edge:dev
+    profiles: ["edge"]
+    restart: unless-stopped  # also waits out the first seconds until the agent has the config
+    depends_on:
+      edge-agent: {condition: service_started}
+      mediamtx: {condition: service_started}
+    environment:
+      VISION_STATE_DIR: /var/lib/vision/state
+      VISION_DETECTOR: ${VISION_DETECTOR:-rfdetr-nano}
+      VISION_DETECTOR_THRESHOLD: ${VISION_DETECTOR_THRESHOLD:-0.35}
+      VISION_LOG_JSON: "false"
+    command: ["run"]  # the site config the agent pulled; a site with one camera needs no --camera
+    volumes:
+      - edgebox:/var/lib/vision
+
+  # Profile "edge-standalone": one pipeline per fake camera on deploy/dev/site.yaml, without the
+  # cloud. The edge CLI runs one camera per process for now.
   edge-cam1:
     <<: *edge
     command: ["run", "/config/site.yaml", "--camera", "cam1", "--outbox", "/var/lib/vision/outbox/cam1"]
@@ -179,4 +222,5 @@ volumes:
   pgdata:
   s3data:
   edgedata:
+  edgebox:
   webmodules:

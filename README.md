@@ -8,6 +8,17 @@ The plans are complete and the edge pipeline core is built: camera / video / rep
 
 ## Quick start
 
+Run the whole system on your computer (macOS, Windows with WSL2, Linux; guide:
+[docs/runbooks/local-setup.md](docs/runbooks/local-setup.md)):
+
+```bash
+./scripts/dev.sh setup     # once: checks tools, installs packages, writes .env
+./scripts/dev.sh up        # cloud, worker, dashboard, fake cameras -> http://localhost:5173
+./scripts/dev.sh edge      # optional: an edge box sending real alerts to the local cloud
+```
+
+Working on the Python packages directly:
+
 ```bash
 uv sync --all-packages                     # Python 3.11+; add --extra rfdetr for the real model
 uv run pytest                              # unit tests

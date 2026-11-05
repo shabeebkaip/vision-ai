@@ -36,7 +36,7 @@ def test_mediamtx_serves_every_camera_path() -> None:
 
 def test_compose_runs_one_edge_container_per_camera() -> None:
     services = _compose()["services"]
-    edge = {name: svc for name, svc in services.items() if name.startswith("edge-")}
+    edge = {name: svc for name, svc in services.items() if name.startswith("edge-cam")}
     site = load_site(DEPLOY / "dev" / "site.yaml")
     cameras = {svc["command"][svc["command"].index("--camera") + 1] for svc in edge.values()}
     assert cameras == {c.id for c in site.cameras}
@@ -58,3 +58,15 @@ def test_env_example_documents_every_compose_variable() -> None:
     }
     used = set(re.findall(r"(?<!\$)\$\{(\w+)", compose))
     assert used <= documented, f"add to .env.example: {sorted(used - documented)}"
+
+
+def test_connected_edge_box_shares_state_with_its_agent() -> None:
+    services = _compose()["services"]
+    agent, box = services["edge-agent"], services["edge-box"]
+    assert agent["profiles"] == box["profiles"] == ["edge"]
+    assert agent["volumes"] == box["volumes"]
+    state = {s["environment"]["VISION_STATE_DIR"] for s in (agent, box)}
+    assert state == {"/var/lib/vision/state"}
+    assert services["api"]["environment"]["VISION_CLOUD_STORAGE_DEVICE_ENDPOINT_URL"] == (
+        "http://s3:8333"
+    )

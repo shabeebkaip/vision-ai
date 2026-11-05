@@ -87,6 +87,18 @@ def test_s3_presigned_urls_are_signed() -> None:
         secret_key="example-secret-key",
     )
     assert split.presign_get("k", 60).url.startswith("http://localhost:9000/vision-media/k?")
+    assert split.presign_put("k", "image/jpeg", 60).url.startswith("http://localhost:9000/")
+    # Edge boxes inside the compose network upload to s3:8333; browsers still get localhost.
+    three = S3Storage(
+        "vision-media",
+        endpoint_url="http://s3:8333",
+        public_endpoint_url="http://localhost:9000",
+        device_endpoint_url="http://s3:8333",
+        access_key="AKIAEXAMPLE",
+        secret_key="example-secret-key",
+    )
+    assert three.presign_put("k", "image/jpeg", 60).url.startswith("http://s3:8333/vision-media/k?")
+    assert three.presign_get("k", 60).url.startswith("http://localhost:9000/vision-media/k?")
 
 
 def test_local_storage_signatures(tmp_path: Path) -> None:
