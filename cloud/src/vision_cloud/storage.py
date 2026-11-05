@@ -75,6 +75,7 @@ class S3Storage:
         *,
         endpoint_url: str | None = None,
         public_endpoint_url: str | None = None,
+        device_endpoint_url: str | None = None,
         region: str = "us-east-1",
         access_key: str | None = None,
         secret_key: str | None = None,
@@ -100,6 +101,9 @@ class S3Storage:
         self._s3 = client if client is not None else make(endpoint_url)
         # Signing needs no network call; a second client only changes the host in the URL.
         self._signer = make(public_endpoint_url) if public_endpoint_url else self._s3
+        # Edge boxes may reach the store under yet another address (inside docker compose they
+        # cannot use the browser's "localhost"). Only devices upload, so PUT URLs use this one.
+        self._device_signer = make(device_endpoint_url) if device_endpoint_url else self._signer
 
     def presign_put(self, key: str, content_type: str, ttl_s: int) -> SignedRequest:
         params: dict[str, Any] = {"Bucket": self.bucket, "Key": key, "ContentType": content_type}
@@ -107,7 +111,9 @@ class S3Storage:
         if self.sse:
             params["ServerSideEncryption"] = self.sse
             headers["x-amz-server-side-encryption"] = self.sse
-        url = self._signer.generate_presigned_url("put_object", Params=params, ExpiresIn=ttl_s)
+        url = self._device_signer.generate_presigned_url(
+            "put_object", Params=params, ExpiresIn=ttl_s
+        )
         return SignedRequest(url=url, method="PUT", expires_at=_expiry(ttl_s), headers=headers)
 
     def presign_get(self, key: str, ttl_s: int) -> SignedRequest:
@@ -216,6 +222,7 @@ def storage_from_settings(settings: CloudSettings) -> ObjectStorage:
         settings.storage_bucket,
         endpoint_url=settings.storage_endpoint_url,
         public_endpoint_url=settings.storage_public_endpoint_url,
+        device_endpoint_url=settings.storage_device_endpoint_url,
         region=settings.storage_region,
         access_key=settings.storage_access_key.get_secret_value()
         if settings.storage_access_key

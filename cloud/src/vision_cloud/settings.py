@@ -84,6 +84,11 @@ class CloudSettings(BaseSettings):
         description="endpoint used in pre-signed URLs when edge boxes and browsers reach the store "
         "under another address than the API does (e.g. storage inside docker compose)",
     )
+    storage_device_endpoint_url: str | None = Field(
+        default=None,
+        description="endpoint in the upload URLs given to edge boxes, when they reach the store "
+        "under another address than browsers do (local dev stack); default: the public one",
+    )
     storage_region: str = "us-east-1"
     storage_access_key: SecretStr | None = None
     storage_secret_key: SecretStr | None = None

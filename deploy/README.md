@@ -23,48 +23,25 @@ Docker files for running Code-Ox Vision:
 | `worker` | Background jobs (`vision-cloud worker`); `docker compose exec worker vision-cloud jobs failed` lists the dead-letter jobs | |
 | `web` | Dashboard dev server (Vite) | `http://localhost:5173` |
 | `mediamtx` | Fake cameras: four clips looped as RTSP, H.264 1280×720 10 fps like an NVR sub-stream | `rtsp://127.0.0.1:8554/cam1` … `cam4` |
-| `edge-cam1` … `edge-cam4` | Edge pipeline, one container per camera (the CLI runs one camera per process), config `dev/site.yaml` | |
+| `edge-agent`, `edge-box` | Profile `edge`: an edge box enrolled with this cloud, running the site config it pulls | |
+| `edge-cam1` … `edge-cam4` | Profile `edge-standalone`: one pipeline per fake camera on `dev/site.yaml`, no cloud | |
 
 ### Run it
 
-From the repository root:
+The easy way is `./scripts/dev.sh` (see `docs/runbooks/local-setup.md`): `setup` once, then `up`,
+`edge`, `status`, `logs`, `down`, `reset`. By hand, from the repository root:
 
 ```bash
 cp .env.example .env
 uv run vision-cloud gen-keys        # paste the two lines into .env
 uv run vision-eval synth --out test-videos/synthetic --video
 docker compose -f deploy/docker-compose.dev.yml --env-file .env up --build -d
-docker compose -f deploy/docker-compose.dev.yml --env-file .env logs -f edge-cam1
 ```
 
-The first build downloads PyTorch (several GB) for RF-DETR. Each edge container downloads the
-RF-DETR Nano weights into the `edgedata` volume on first start (`RF_HOME`); on a machine without
-internet, copy `rf-detr-nano.pth` into `/var/lib/vision/cache/rfdetr/` in that volume.
-
-Demo login data for the API: `uv run vision-cloud seed-demo --owner-email you@example.com` with
-`VISION_CLOUD_DATABASE_URL` pointing at `localhost:5432` as `vision_owner` (see `cloud/README.md`).
-
-Check a fake camera from the host, or play it in VLC:
-
-```bash
-uv run vision-edge check-camera rtsp://127.0.0.1:8554/cam1
-```
-
-Events land in the outbox in the `edgedata` volume:
-
-```bash
-docker compose -f deploy/docker-compose.dev.yml --env-file .env exec edge-cam1 ls -R /var/lib/vision/outbox
-```
-
-Stop with `down`; add `-v` to also delete the database, buckets, outboxes and model cache.
-
-The dashboard at http://localhost:5173 uses this API: create the demo organisation with
-`vision-cloud seed-demo --owner-email you@example.com` (see `cloud/README.md`) and sign in with it.
-Set `VITE_API_BASE_URL=` (empty) in `.env` for the dashboard's built-in demo data instead.
-
-Not wired yet: the four edge containers run on `dev/site.yaml` (cameras `cam1`…`cam4`), which the
-cloud does not know, so their events stay in their local outboxes. To send events to this API, enrol
-a box and run it on the site config the agent pulls (`docs/runbooks/edge-box.md`).
+Profiles add the edge: `--profile edge` (one box enrolled with this cloud; `scripts/dev.sh edge`
+does the enrolment) and `--profile edge-standalone` (one pipeline per fake camera on
+`dev/site.yaml`, without the cloud). Personal overrides go in `deploy/docker-compose.dev.local.yml`
+(git-ignored), which `scripts/dev.sh` includes.
 
 ### Fake cameras and what they detect
 
