@@ -13,3 +13,4 @@ test-videos/synthetic/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+deploy/docker-compose.dev.local.yml

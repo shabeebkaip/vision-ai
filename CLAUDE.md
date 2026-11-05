@@ -47,7 +47,7 @@ uv run mypy shared/src edge/src ml/src
 uv run python scripts/licence_check.py # fails on banned or non-permissive licences
 uv run vision-edge --help              # edge CLI: run, enrol, agent, upload, detect-file, survey, check-camera
 uv run vision-eval run --strict        # harness: score the pipeline against test-videos/manifest.yaml
-docker compose -f deploy/docker-compose.dev.yml --env-file .env up --build  # dev stack, see deploy/README.md
+./scripts/dev.sh setup && ./scripts/dev.sh up   # whole stack locally (docs/runbooks/local-setup.md)
 ```
 
 ## Rules that are never broken
