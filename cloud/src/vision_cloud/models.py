@@ -154,6 +154,9 @@ class Site(TenantMixin, Base):
 
     id: Mapped[str] = _id_col()
     name: Mapped[str] = mapped_column(String(200))
+    name_ar: Mapped[str] = mapped_column(String(200), default="")
+    industry: Mapped[str] = mapped_column(String(32), default="other")
+    city: Mapped[str] = mapped_column(String(100), default="")
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Riyadh")
     address: Mapped[str] = mapped_column(Text, default="")
     opening_hours: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)

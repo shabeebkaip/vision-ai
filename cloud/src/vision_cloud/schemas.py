@@ -147,8 +147,15 @@ class OrganisationCreated(BaseModel):
 # --------------------------------------------------------------------------- sites
 
 
+Industry = Literal["restaurant", "retail", "clinic", "hotel", "warehouse", "factory", "other"]
+"""The industries of the rule templates (vision_shared.templates, DET-08), plus "other"."""
+
+
 class SiteCreate(_In):
     name: str = Field(min_length=1, max_length=200)
+    name_ar: str = Field(default="", max_length=200)
+    industry: Industry = "other"
+    city: str = Field(default="", max_length=100)
     timezone: TimezoneName = "Asia/Riyadh"
     address: str = Field(default="", max_length=1000)
     opening_hours: dict[str, Any] = Field(default_factory=dict)
@@ -157,6 +164,9 @@ class SiteCreate(_In):
 
 class SiteUpdate(_In):
     name: str | None = Field(default=None, min_length=1, max_length=200)
+    name_ar: str | None = Field(default=None, max_length=200)
+    industry: Industry | None = None
+    city: str | None = Field(default=None, max_length=100)
     timezone: TimezoneName | None = None
     address: str | None = Field(default=None, max_length=1000)
     opening_hours: dict[str, Any] | None = None
@@ -166,6 +176,9 @@ class SiteUpdate(_In):
 class SiteOut(_Out):
     id: str
     name: str
+    name_ar: str
+    industry: str
+    city: str
     timezone: str
     address: str
     opening_hours: dict[str, Any]

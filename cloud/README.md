@@ -65,7 +65,10 @@ migrations, and connects the API as a fresh role without BYPASSRLS. CI runs it i
 
 ## API overview
 
-Dashboard (`Authorization: Bearer <access token>`): `/api/v1/auth/*`, `/api/v1/sites`,
+Dashboard (`Authorization: Bearer <access token>`): `/api/v1/auth/*`, `/api/v1/sites` (with camera
+counts and today's alerts), `/api/v1/sites/{id}/overview?date=` (alerts by type, 7-day false-alarm
+rate, footfall by local hour, cameras online), `/api/v1/sites/{id}/rules` (rules with the
+recipients each alerts; POST creates a rule and its recipients together),
 `/api/v1/cameras`, `/api/v1/rules`, `/api/v1/devices`, `/api/v1/events`, `/api/v1/members`,
 `/api/v1/invitations`, `/api/v1/recipients` (who gets alerts: channel, sites, rules, minimum
 severity, quiet hours, daily cap, escalation rank; site manager or higher),
@@ -88,7 +91,8 @@ Payloads are in `shared/src/vision_shared/api.py`; the full schema is at `/docs`
 ## Not done yet
 
 Password reset and 2FA (CLD-03), rate limits (CLD-05, CLD-19), storage lifecycle rules and delete
-jobs (CLD-06), zones/aggregates query endpoints (CLD-07), the WhatsApp channel (CLD-09), plan
+jobs (CLD-06), queue-length and dwell trends (CLD-07 aggregates beyond footfall), the WhatsApp
+channel (CLD-09), plan
 limits (CLD-18), staging deployment (CLD-20).
 
 ## Alerts (CLD-08)

@@ -13,6 +13,7 @@ from vision_cloud import errors
 from vision_cloud.api import (
     alerts,
     auth,
+    dashboard,
     device,
     events,
     manage,
@@ -77,6 +78,7 @@ def create_app(
             expose_headers=["X-Request-ID", "ETag"],
         )
     app.include_router(auth.router)
+    app.include_router(dashboard.router)
     app.include_router(manage.router)
     app.include_router(recipients.router)
     app.include_router(alerts.router)
