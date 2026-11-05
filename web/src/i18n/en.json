@@ -40,7 +40,8 @@
   "role": {
     "owner": "Owner",
     "manager": "Manager",
-    "installer": "Installer"
+    "site_manager": "Site manager",
+    "viewer": "Viewer"
   },
   "auth": {
     "title": "Sign in",
@@ -85,11 +86,12 @@
   },
   "industry": {
     "restaurant": "Restaurant",
-    "pharmacy": "Pharmacy",
-    "warehouse": "Warehouse",
     "retail": "Retail",
     "clinic": "Clinic",
-    "office": "Office"
+    "hotel": "Hotel",
+    "warehouse": "Warehouse",
+    "factory": "Factory",
+    "other": "Other"
   },
   "city": {
     "Riyadh": "Riyadh"
@@ -190,7 +192,8 @@
     "save": "Save review",
     "saved": "Thanks, your review is saved.",
     "change": "Change review",
-    "by": "by {{name}}, {{time}}"
+    "by": "by {{name}}, {{time}}",
+    "at": "{{time}}"
   },
   "aiCheck": {
     "title": "AI second opinion",

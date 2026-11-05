@@ -40,7 +40,8 @@
   "role": {
     "owner": "المالك",
     "manager": "مدير",
-    "installer": "فني التركيب"
+    "site_manager": "مدير موقع",
+    "viewer": "مشاهد"
   },
   "auth": {
     "title": "تسجيل الدخول",
@@ -85,11 +86,12 @@
   },
   "industry": {
     "restaurant": "مطعم",
-    "pharmacy": "صيدلية",
-    "warehouse": "مستودع",
     "retail": "متجر",
     "clinic": "عيادة",
-    "office": "مكتب"
+    "hotel": "فندق",
+    "warehouse": "مستودع",
+    "factory": "مصنع",
+    "other": "أخرى"
   },
   "city": {
     "Riyadh": "الرياض"
@@ -214,7 +216,8 @@
     "save": "حفظ المراجعة",
     "saved": "شكرًا، تم حفظ مراجعتك.",
     "change": "تعديل المراجعة",
-    "by": "بواسطة {{name}}، {{time}}"
+    "by": "بواسطة {{name}}، {{time}}",
+    "at": "{{time}}"
   },
   "aiCheck": {
     "title": "رأي ثانٍ من الذكاء الاصطناعي",

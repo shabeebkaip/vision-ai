@@ -63,8 +63,8 @@ the Gregorian calendar in Arabic and a 24-hour clock. Users can pick Western or 
 
 With `VITE_API_BASE_URL` empty, `createApiClient()` returns `MockApiClient`:
 
-- Three fictional Riyadh sites: a restaurant (4 cameras), a pharmacy (3) and a distribution centre
-  (4), with English and Arabic names, zones, lines, recipients and 16 rules across the six rule types.
+- Three fictional Riyadh sites: a restaurant (4 cameras), a pharmacy (3, industry retail) and a
+  distribution centre (4), with English and Arabic names, zones, lines, recipients and 16 rules across the six rule types.
 - About 60 events over the last 7 days, generated from a fixed seed relative to "now", inside each
   rule's schedule, with edge-style messages, detection boxes, AI check results and reviews.
 - Snapshots are drawn as SVG scenes (counter, entrance, dining hall, corridor, dock, racking aisle)
@@ -77,33 +77,35 @@ With `VITE_API_BASE_URL` empty, `createApiClient()` returns `MockApiClient`:
 ## Pointing at the real API
 
 ```bash
-cp .env.example .env.local
-# .env.local
-VITE_API_BASE_URL=https://api.example.sa/v1
+# web/.env.local
+VITE_API_BASE_URL=http://localhost:8000/api/v1
 ```
 
-Nothing else changes. The session token is sent as `Authorization: Bearer <token>`; a 401 signs the
-user out.
+The dev stack (`deploy/docker-compose.dev.yml`) sets this by default; sign in with the demo owner
+from `vision-cloud seed-demo`. The cloud must allow the dashboard's origin
+(`VISION_CLOUD_CORS_ORIGINS`, `["http://localhost:5173"]` by default).
 
-### API contract the backend must match
+`src/api/http.ts` talks to the cloud's own routes and translates its responses into the view models
+in `src/api/models.ts`, so screens never see the difference between the cloud and the mock:
 
-Paths are relative to `VITE_API_BASE_URL`. Shapes are in `src/api/models.ts`.
+| Dashboard call             | Cloud route                                       | Translation                                                       |
+| -------------------------- | ------------------------------------------------- | ----------------------------------------------------------------- |
+| `login`                    | `POST /auth/login`, then `GET /auth/me`           | token + user; keeps the refresh token                             |
+| `logout`                   | `POST /auth/logout`                               | revokes the refresh token                                         |
+| `listSites`, `getOverview` | `GET /sites`, `GET /sites/{id}/overview?date=`    | empty Arabic name becomes `null`; every rule type in the overview |
+| `listCameras`, `getCamera` | `GET /cameras`, `GET /cameras/{id}`               | `source_redacted` as `source`; status `error` shown as degraded   |
+| `saveGeometry`             | `PATCH /cameras/{id}` with `{zones, lines}`       | a rule still using a removed zone or line becomes a 409           |
+| `listRules`, `createRule`  | `GET/POST /sites/{id}/rules`                      | rule without the cloud-assigned fields                            |
+| `listRecipients`           | `GET /sites/{id}/recipients`                      |                                                                   |
+| `listEvents`, `getEvent`   | `GET /events`, `GET /events/{id}`                 | the latest feedback; Telegram answers shown by their author       |
+| `submitFeedback`           | `POST /events/{id}/feedback` `{is_true, comment}` | returns the updated event                                         |
 
-| Method and path                                                                       | Request                                                                                   | Response                                                                                                        |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `POST /auth/login`                                                                    | `{email, password}`                                                                       | `Session {access_token, user {id, name, email, role}}`                                                          |
-| `POST /auth/logout`                                                                   |                                                                                           | 204                                                                                                             |
-| `GET /sites`                                                                          |                                                                                           | `SiteSummary[]` (adds `name_ar`, `industry`, `city`, camera counts, `alerts_today`)                             |
-| `GET /sites/{id}/overview?date=YYYY-MM-DD`                                            | local date in the site timezone                                                           | `SiteOverview` (alerts by rule type, 7-day false-alert rate, footfall by local hour, cameras online)            |
-| `GET /cameras?site_id=`                                                               |                                                                                           | `CameraView[]` = `CameraConfig` + `site_id`, `name_ar`, `status`, `last_frame_at`, `snapshot_url`, `resolution` |
-| `GET /cameras/{id}`                                                                   |                                                                                           | `CameraView`                                                                                                    |
-| `PUT /cameras/{id}/geometry`                                                          | `{zones: Zone[], lines: Line[]}`                                                          | `CameraView`; 422 on invalid geometry, 409 when a rule still uses a removed zone or line                        |
-| `GET /sites/{id}/rules`                                                               |                                                                                           | `{rule: Rule, recipient_ids: string[]}[]`                                                                       |
-| `POST /sites/{id}/rules`                                                              | `{rule: Rule, recipient_ids}`                                                             | the same                                                                                                        |
-| `GET /sites/{id}/recipients`                                                          |                                                                                           | `Recipient[] {id, name, name_ar, channel}`                                                                      |
-| `GET /events?site_id&camera_id&rule_type&severity&state&verdict&from&to&cursor&limit` | `from` inclusive, `to` exclusive, ISO UTC; `verdict` = `correct`, `false_alarm` or `none` | `{items: EventView[], next_cursor}`, newest first                                                               |
-| `GET /events/{id}`                                                                    |                                                                                           | `EventView` = `Event` + `snapshot_url`, `clip_url` (signed URLs), `feedback`                                    |
-| `POST /events/{id}/feedback`                                                          | `{verdict, note}`                                                                         | `EventView`                                                                                                     |
+Access tokens last 15 minutes. On a 401 the client refreshes once with the refresh token (one refresh
+for all the requests that failed together), retries, and signs the user out only if that fails.
+Errors carry the cloud's `code` and `details` (`ApiError`).
+
+Not yet from the cloud: snapshot thumbnails in the event list (the detail page has them) and the
+latest camera frame for the zone editor (EDG-03).
 
 Optional `Event.attributes` the dashboard reads: `boxes` (normalised `[x1, y1, x2, y2]` list drawn
 over the snapshot) and `ai_check` (`{verdict: confirmed|rejected|unsure, reason}`).

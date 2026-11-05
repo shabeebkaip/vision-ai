@@ -58,9 +58,13 @@ docker compose -f deploy/docker-compose.dev.yml --env-file .env exec edge-cam1 l
 
 Stop with `down`; add `-v` to also delete the database, buckets, outboxes and model cache.
 
-Not wired yet: the edge does not upload to the API until the uploader (EDG-12) lands, and the
-dashboard uses its built-in demo data (`VITE_API_BASE_URL` empty) until its API contract and the
-cloud routes are aligned.
+The dashboard at http://localhost:5173 uses this API: create the demo organisation with
+`vision-cloud seed-demo --owner-email you@example.com` (see `cloud/README.md`) and sign in with it.
+Set `VITE_API_BASE_URL=` (empty) in `.env` for the dashboard's built-in demo data instead.
+
+Not wired yet: the four edge containers run on `dev/site.yaml` (cameras `cam1`…`cam4`), which the
+cloud does not know, so their events stay in their local outboxes. To send events to this API, enrol
+a box and run it on the site config the agent pulls (`docs/runbooks/edge-box.md`).
 
 ### Fake cameras and what they detect
 

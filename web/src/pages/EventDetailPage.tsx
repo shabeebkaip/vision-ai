@@ -61,7 +61,12 @@ function FeedbackCard({ event }: { event: EventView }) {
           <div className="flex flex-wrap items-center gap-2">
             <VerdictBadge verdict={event.feedback.verdict} />
             <span className="text-xs text-ink-500">
-              {t('feedback.by', { name: event.feedback.by, time: fmt.dateTime(event.feedback.at) })}
+              {event.feedback.by
+                ? t('feedback.by', {
+                    name: event.feedback.by,
+                    time: fmt.dateTime(event.feedback.at),
+                  })
+                : t('feedback.at', { time: fmt.dateTime(event.feedback.at) })}
             </span>
           </div>
           {event.feedback.note && (

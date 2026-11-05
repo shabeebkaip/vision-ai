@@ -10,7 +10,7 @@ describe('MockApiClient demo data', () => {
   it('has three Riyadh sites and about 60 events covering all six rule types', async () => {
     const client = api();
     const sites = await client.listSites();
-    expect(sites.map((s) => s.industry)).toEqual(['restaurant', 'pharmacy', 'warehouse']);
+    expect(sites.map((s) => s.industry)).toEqual(['restaurant', 'retail', 'warehouse']);
     expect(sites.every((s) => s.timezone === 'Asia/Riyadh' && s.name_ar)).toBe(true);
     const all = await client.listEvents({}, null, 500);
     expect(all.items.length).toBe(60);
