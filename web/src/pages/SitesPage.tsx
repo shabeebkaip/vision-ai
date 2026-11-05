@@ -1,4 +1,15 @@
-import { Pill, PenLine, Plus, Store, Warehouse, type LucideIcon } from 'lucide-react';
+import {
+  Factory,
+  Hotel,
+  PenLine,
+  Plus,
+  ShoppingBag,
+  Stethoscope,
+  Store,
+  UtensilsCrossed,
+  Warehouse,
+  type LucideIcon,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { CameraView, Industry, SiteSummary } from '../api/models';
 import { Thumb } from '../components/EventBits';
@@ -10,9 +21,12 @@ import { useFormat } from '../lib/prefs';
 import { useCameras, useLocalName, useSites } from '../lib/queries';
 
 export const INDUSTRY_ICONS: Partial<Record<Industry, LucideIcon>> = {
-  restaurant: Store,
-  pharmacy: Pill,
+  restaurant: UtensilsCrossed,
+  retail: ShoppingBag,
+  clinic: Stethoscope,
+  hotel: Hotel,
   warehouse: Warehouse,
+  factory: Factory,
 };
 
 function CameraActions({ camera }: { camera: CameraView }) {

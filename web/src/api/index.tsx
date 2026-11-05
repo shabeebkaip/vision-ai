@@ -13,7 +13,8 @@ export function createApiClient(env: { VITE_API_BASE_URL?: string } = import.met
   if (base) {
     return new HttpApiClient({
       baseUrl: base,
-      getToken: () => sessionStore.load()?.access_token ?? null,
+      getSession: () => sessionStore.load(),
+      saveSession: (s) => sessionStore.save(s),
       onUnauthorized: () => {
         sessionStore.save(null);
         window.dispatchEvent(new CustomEvent('vision:unauthorized'));

@@ -51,9 +51,12 @@ export const ZONE_RULE_TYPES: ReadonlySet<RuleType> = new Set<RuleType>([
   'presence_after_hours',
 ]);
 
-export type Industry = 'restaurant' | 'pharmacy' | 'warehouse' | 'retail' | 'clinic' | 'office';
+/** The cloud's industries: those of the rule templates (DET-08) plus "other". */
+export type Industry =
+  'restaurant' | 'retail' | 'clinic' | 'hotel' | 'warehouse' | 'factory' | 'other';
 export type CameraStatus = 'online' | 'degraded' | 'offline';
-export type Role = 'owner' | 'manager' | 'installer';
+/** Roles inside one organisation, as the cloud defines them. */
+export type Role = 'owner' | 'manager' | 'site_manager' | 'viewer';
 export type Channel = 'whatsapp' | 'telegram' | 'email';
 export type Verdict = 'correct' | 'false_alarm';
 
@@ -67,6 +70,10 @@ export interface User {
 export interface Session {
   access_token: string;
   user: User;
+  /** Long-lived token for POST /auth/refresh (real backend only; the mock has none). */
+  refresh_token?: string;
+  /** When the access token expires, ISO 8601. */
+  expires_at?: string;
 }
 
 export interface SiteSummary {

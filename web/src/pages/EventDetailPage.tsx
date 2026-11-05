@@ -10,7 +10,7 @@ import { EventMedia } from '../components/MediaViewer';
 import { Page } from '../components/layout/AppShell';
 import { SeverityBadge, StateBadge, VerdictBadge } from '../components/ui/Badges';
 import { Button, ButtonLink } from '../components/ui/Button';
-import { ErrorState, Spinner } from '../components/ui/States';
+import { ErrorState, Skeleton, Spinner } from '../components/ui/States';
 import { useFormat } from '../lib/prefs';
 import { qk, useLocalName, useSites } from '../lib/queries';
 import { useSiteRules } from '../lib/useRulePreview';
@@ -61,7 +61,12 @@ function FeedbackCard({ event }: { event: EventView }) {
           <div className="flex flex-wrap items-center gap-2">
             <VerdictBadge verdict={event.feedback.verdict} />
             <span className="text-xs text-ink-500">
-              {t('feedback.by', { name: event.feedback.by, time: fmt.dateTime(event.feedback.at) })}
+              {event.feedback.by
+                ? t('feedback.by', {
+                    name: event.feedback.by,
+                    time: fmt.dateTime(event.feedback.at),
+                  })
+                : t('feedback.at', { time: fmt.dateTime(event.feedback.at) })}
             </span>
           </div>
           {event.feedback.note && (
@@ -197,7 +202,7 @@ export function EventDetailPage() {
   const sites = useSites();
   const site = sites.data?.find((s) => s.id === event?.site_id);
   const fmt = useFormat(site?.timezone);
-  const { cameras, byId, preview } = useSiteRules(event?.site_id);
+  const { cameras, byId, preview, rules } = useSiteRules(event?.site_id);
   const camera = cameras.data?.find((c) => c.id === event?.camera_id);
   const rr = event ? byId.get(event.rule_id) : undefined;
 
@@ -282,10 +287,12 @@ export function EventDetailPage() {
                   {preview(rr.rule, rr.recipient_ids)}
                 </p>
               </>
-            ) : (
+            ) : rules.isSuccess ? (
               <p className="mt-2 text-sm text-ink-500">
                 {t('event.ruleUnknown', { id: event.rule_id })}
               </p>
+            ) : (
+              <Skeleton className="mt-2 h-12" />
             )}
             {camera && (
               <ButtonLink

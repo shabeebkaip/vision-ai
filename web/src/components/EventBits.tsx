@@ -26,12 +26,21 @@ export const RULE_ICONS: Record<RuleType, LucideIcon> = {
 export function useEventSummary() {
   const { t } = useTranslation();
   const fmt = useFormat();
-  return (e: Pick<EventView, 'rule_type' | 'value'>): string => {
+  return (
+    e: Pick<EventView, 'rule_type' | 'value'> &
+      Partial<Pick<EventView, 'condition_started_at' | 'triggered_at'>>,
+  ): string => {
     const count = Math.round(e.value);
+    // "Unattended": the edge sends the people count (0) as the value; how long the place was
+    // empty is the time from the condition starting to the alert.
+    const seconds =
+      e.rule_type === 'zone_empty' && e.condition_started_at && e.triggered_at
+        ? Math.max(0, (Date.parse(e.triggered_at) - Date.parse(e.condition_started_at)) / 1000)
+        : e.value;
     const vars = {
       count,
       n: fmt.number(count),
-      duration: describeDuration(e.value, t, fmt.opts),
+      duration: describeDuration(seconds, t, fmt.opts),
     };
     return t(`eventValue.${e.rule_type}`, vars);
   };

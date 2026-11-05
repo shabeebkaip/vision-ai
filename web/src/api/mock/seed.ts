@@ -336,7 +336,7 @@ export function buildSites(): MockSite[] {
     id: 'olaya-pharmacy',
     name: 'Olaya Family Pharmacy',
     name_ar: 'صيدلية العليا العائلية',
-    industry: 'pharmacy',
+    industry: 'retail', // a pharmacy
     city: 'Riyadh',
     recipients: [
       {
@@ -984,7 +984,7 @@ export function footfallShape(industry: Industry, hour: number): number {
       return hour < 11 && hour > 1
         ? 0
         : bump(hour, 14, 1.4, 55) + bump(hour, 21, 1.8, 95) + bump(hour, 0.5, 0.8, 30);
-    case 'pharmacy':
+    case 'retail':
       return hour < 8 ? 3 : bump(hour, 12, 2.5, 22) + bump(hour, 20, 2.2, 38);
     case 'warehouse':
       return (
