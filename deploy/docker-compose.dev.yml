@@ -44,7 +44,9 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vision_owner -d vision"]
+      # Over TCP: during first-time setup Postgres runs a temporary server on the local socket only,
+      # so a socket check reports "ready" too early and migrate fails on a fresh database.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U vision_owner -d vision"]
       interval: 5s
       timeout: 5s
       retries: 10

@@ -45,7 +45,8 @@ RUN uv sync --frozen --no-dev --package vision-edge ${EDGE_EXTRAS:+--extra $EDGE
 
 RUN useradd --system --uid 10001 --home-dir /var/lib/vision vision \
     && mkdir -p /var/lib/vision/outbox /models /config \
-    && chown -R vision /var/lib/vision
+    && chown -R vision /var/lib/vision \
+    && chmod -R a+rX /app   # readable by the non-root user even from an owner-only checkout
 USER vision
 VOLUME ["/var/lib/vision"]
 

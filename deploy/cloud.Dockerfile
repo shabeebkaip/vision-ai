@@ -18,7 +18,9 @@ COPY shared shared
 COPY cloud cloud
 RUN uv sync --frozen --no-dev --package vision-cloud
 
-RUN useradd --system --uid 10001 vision
+# Make the code readable by the non-root user even when the checkout has owner-only permissions
+# (a restrictive umask or a copied folder); otherwise "No module named 'vision_cloud'".
+RUN useradd --system --uid 10001 vision && chmod -R a+rX /app
 USER vision
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"
